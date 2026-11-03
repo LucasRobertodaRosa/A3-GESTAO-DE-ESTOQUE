@@ -100,15 +100,54 @@ def cadastrar_produto(codigo, nome, preco, estoque_minimo, categoria_id):
     return buscar_produto(produto_id)
 
 
-def listar_produtos(incluir_inativos=False):
-    """Devolve os produtos ordenados por nome. Por padrão, só os ativos."""
+def _contem(texto, trecho):
+    # casefold + Python: o LIKE do SQLite não ignora acentos (É/é).
+    return trecho.strip().casefold() in texto.casefold()
+
+
+def listar_produtos(
+    incluir_inativos=False, nome=None, codigo=None, categoria_id=None
+):
+    """Devolve os produtos ordenados por nome. Por padrão, só os ativos.
+
+    Filtros opcionais (combináveis; todos precisam ser atendidos):
+        nome: trecho do nome, sem diferenciar maiúsculas/acentos.
+        codigo: trecho do código, sem diferenciar maiúsculas.
+        categoria_id: id exato da categoria.
+    """
     sql = f"SELECT {_COLUNAS} FROM produtos"
+    parametros = []
+    condicoes = []
     if not incluir_inativos:
-        sql += " WHERE ativo = 1"
+        condicoes.append("ativo = 1")
+    if categoria_id is not None:
+        condicoes.append("categoria_id = ?")
+        parametros.append(categoria_id)
+    if condicoes:
+        sql += " WHERE " + " AND ".join(condicoes)
     sql += " ORDER BY nome"
 
     conn = conectar()
-    return [_linha_para_dict(linha) for linha in conn.execute(sql).fetchall()]
+    produtos = [
+        _linha_para_dict(linha) for linha in conn.execute(sql, parametros).fetchall()
+    ]
+
+    if nome is not None and nome.strip():
+        produtos = [p for p in produtos if _contem(p["nome"], nome)]
+    if codigo is not None and codigo.strip():
+        produtos = [p for p in produtos if _contem(p["codigo"], codigo)]
+    return produtos
+
+
+def buscar_produto_por_codigo(codigo):
+    """Devolve o produto com o código exato informado, ou None se não existir."""
+    if codigo is None or not str(codigo).strip():
+        return None
+    conn = conectar()
+    for linha in conn.execute(f"SELECT {_COLUNAS} FROM produtos").fetchall():
+        if linha[1].casefold() == str(codigo).strip().casefold():
+            return _linha_para_dict(linha)
+    return None
 
 
 def buscar_produto(produto_id):
