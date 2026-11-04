@@ -193,3 +193,54 @@ def movimentacoes_por_produto(produto_id, conexao=None):
     finally:
         if deve_fechar:
             conn.close()
+
+
+def indicadores_gerais(conexao=None):
+    """Resumo do estoque: produtos, alertas e totais de entradas e saídas.
+
+    Chaves devolvidas:
+        total_produtos         produtos ativos
+        produtos_abaixo_minimo ativos com saldo > 0 e abaixo do mínimo
+        produtos_sem_estoque   ativos com saldo zerado
+        unidades_em_estoque    soma dos saldos dos produtos ativos
+        valor_total_estoque    soma de preço * saldo dos produtos ativos
+        total_entradas         unidades que entraram (todas as movimentações)
+        total_saidas           unidades que saíram (todas as movimentações)
+        qtd_entradas           número de registros de entrada
+        qtd_saidas             número de registros de saída
+    """
+    conn, deve_fechar = _obter_conexao(conexao)
+    try:
+        produtos = relatorio_estoque(conexao=conn)
+        linha = conn.execute(
+            """
+            SELECT
+                COALESCE(SUM(CASE WHEN tipo = 'ENTRADA' THEN quantidade END), 0),
+                COALESCE(SUM(CASE WHEN tipo = 'SAIDA'   THEN quantidade END), 0),
+                COALESCE(SUM(CASE WHEN tipo = 'ENTRADA' THEN 1 END), 0),
+                COALESCE(SUM(CASE WHEN tipo = 'SAIDA'   THEN 1 END), 0)
+            FROM movimentacoes
+            """
+        ).fetchone()
+        entradas, saidas, qtd_entradas, qtd_saidas = tuple(linha)
+
+        return {
+            "total_produtos": len(produtos),
+            "produtos_abaixo_minimo": sum(
+                1 for p in produtos if p["situacao"] == "BAIXO"
+            ),
+            "produtos_sem_estoque": sum(
+                1 for p in produtos if p["situacao"] == "SEM ESTOQUE"
+            ),
+            "unidades_em_estoque": sum(p["estoque_atual"] for p in produtos),
+            "valor_total_estoque": round(
+                sum(p["valor_total"] for p in produtos), 2
+            ),
+            "total_entradas": entradas,
+            "total_saidas": saidas,
+            "qtd_entradas": qtd_entradas,
+            "qtd_saidas": qtd_saidas,
+        }
+    finally:
+        if deve_fechar:
+            conn.close()
