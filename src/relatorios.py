@@ -12,6 +12,8 @@ Cada função aceita o parâmetro opcional "conexao". O main.py o repassa
 automaticamente e, nos testes, use conectar(":memory:").
 """
 
+import unicodedata
+
 try:
     from .banco import conectar
 except ImportError:  # quando executado de dentro da pasta src
@@ -26,6 +28,16 @@ def _obter_conexao(conexao=None):
     if conexao is not None:
         return conexao, False
     return conectar(), True
+
+
+def _chave_nome(nome):
+    """Chave de ordenação sem acentos e sem diferenciar maiúsculas.
+
+    O ORDER BY do SQLite compara byte a byte e põe "Água" depois de "Detergente".
+    """
+    sem_acento = unicodedata.normalize("NFKD", nome)
+    sem_acento = "".join(c for c in sem_acento if not unicodedata.combining(c))
+    return sem_acento.casefold()
 
 
 def _situacao(estoque_atual, estoque_minimo):
@@ -60,7 +72,6 @@ def relatorio_estoque(incluir_inativos=False, conexao=None):
         """
         if not incluir_inativos:
             sql += " WHERE p.ativo = 1"
-        sql += " ORDER BY p.nome"
 
         relatorio = []
         for linha in conn.execute(sql).fetchall():
@@ -77,7 +88,25 @@ def relatorio_estoque(incluir_inativos=False, conexao=None):
                     "situacao": _situacao(atual, minimo),
                 }
             )
-        return relatorio
+        return sorted(relatorio, key=lambda item: _chave_nome(item["nome"]))
     finally:
         if deve_fechar:
             conn.close()
+
+
+def produtos_estoque_baixo(conexao=None):
+    """Produtos ativos com saldo acima de zero e abaixo do estoque mínimo."""
+    return [
+        item
+        for item in relatorio_estoque(conexao=conexao)
+        if item["situacao"] == "BAIXO"
+    ]
+
+
+def produtos_sem_estoque(conexao=None):
+    """Produtos ativos com saldo zerado."""
+    return [
+        item
+        for item in relatorio_estoque(conexao=conexao)
+        if item["situacao"] == "SEM ESTOQUE"
+    ]
