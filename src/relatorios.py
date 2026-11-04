@@ -14,6 +14,8 @@ automaticamente e, nos testes, use conectar(":memory:").
 
 import unicodedata
 
+from datetime import datetime
+
 try:
     from .banco import conectar
 except ImportError:  # quando executado de dentro da pasta src
@@ -110,3 +112,84 @@ def produtos_sem_estoque(conexao=None):
         for item in relatorio_estoque(conexao=conexao)
         if item["situacao"] == "SEM ESTOQUE"
     ]
+
+
+def _validar_data(data, nome):
+    """Aceita 'AAAA-MM-DD' e devolve a data normalizada."""
+    try:
+        return datetime.strptime(str(data).strip(), "%Y-%m-%d").strftime(
+            "%Y-%m-%d"
+        )
+    except ValueError:
+        raise ValueError(f"{nome} inválida. Use o formato AAAA-MM-DD.")
+
+
+def _linhas_para_dicts(cursor):
+    colunas = [descricao[0] for descricao in cursor.description]
+    return [dict(zip(colunas, linha)) for linha in cursor.fetchall()]
+
+
+_SQL_MOVIMENTACOES = """
+    SELECT
+        m.id,
+        m.data_hora,
+        m.tipo,
+        p.codigo,
+        p.nome AS produto,
+        m.quantidade,
+        f.nome AS funcionario,
+        fo.nome AS fornecedor,
+        m.observacao
+    FROM movimentacoes m
+    JOIN produtos p ON p.id = m.produto_id
+    LEFT JOIN funcionarios f ON f.id = m.funcionario_id
+    LEFT JOIN fornecedores fo ON fo.id = m.fornecedor_id
+"""
+
+
+def movimentacoes_por_periodo(data_inicio, data_fim, conexao=None):
+    """Entradas e saídas entre duas datas (inclusive), da mais recente à mais antiga.
+
+    As datas usam o formato AAAA-MM-DD. O dia final é incluído por inteiro.
+    Cada item traz: id, data_hora, tipo, codigo, produto, quantidade,
+    funcionario, fornecedor e observacao.
+    """
+    inicio = _validar_data(data_inicio, "Data inicial")
+    fim = _validar_data(data_fim, "Data final")
+    if inicio > fim:
+        raise ValueError("A data inicial não pode ser maior que a data final.")
+
+    conn, deve_fechar = _obter_conexao(conexao)
+    try:
+        cursor = conn.execute(
+            _SQL_MOVIMENTACOES
+            + " WHERE date(m.data_hora) BETWEEN ? AND ?"
+            + " ORDER BY m.data_hora DESC, m.id DESC",
+            (inicio, fim),
+        )
+        return _linhas_para_dicts(cursor)
+    finally:
+        if deve_fechar:
+            conn.close()
+
+
+def movimentacoes_por_produto(produto_id, conexao=None):
+    """Histórico de entradas e saídas de um produto, da mais recente à mais antiga."""
+    conn, deve_fechar = _obter_conexao(conexao)
+    try:
+        existe = conn.execute(
+            "SELECT 1 FROM produtos WHERE id = ?", (produto_id,)
+        ).fetchone()
+        if existe is None:
+            raise ValueError(f"Produto {produto_id} não encontrado.")
+
+        cursor = conn.execute(
+            _SQL_MOVIMENTACOES
+            + " WHERE m.produto_id = ?"
+            + " ORDER BY m.data_hora DESC, m.id DESC",
+            (produto_id,),
+        )
+        return _linhas_para_dicts(cursor)
+    finally:
+        if deve_fechar:
+            conn.close()
