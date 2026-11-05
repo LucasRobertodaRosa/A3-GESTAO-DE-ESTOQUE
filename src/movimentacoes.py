@@ -1,400 +1,172 @@
-from datetime import datetime
+"""Registro e histórico de entradas/saídas usando o esquema oficial de src.banco.
+
+O menu principal passa os argumentos na seguinte ordem:
+entrada: produto_id, quantidade, fornecedor_id, funcionario_id
+saída: produto_id, quantidade, destinatario, funcionario_id
+"""
 
 try:
     from .banco import conectar
-except ImportError:
+except ImportError:  # execução direta de dentro de src/
     from banco import conectar
 
 
 def _obter_conexao(conexao=None):
-    """
-    Retorna uma conexão com o banco.
-
-    Se uma conexão for passada, ela será reutilizada.
-    Isso facilita os testes posteriormente.
-    """
+    """Retorna (conexão, deve_fechar)."""
     if conexao is not None:
         return conexao, False
-
     return conectar(), True
 
 
 def _validar_quantidade(quantidade):
-    """
-    Valida se a quantidade informada é numérica e maior que zero.
-    """
-    if isinstance(quantidade, bool) or not isinstance(
-        quantidade, (int, float)
-    ):
-        raise ValueError("A quantidade deve ser numérica.")
-
-    if quantidade <= 0:
-        raise ValueError("A quantidade deve ser maior que zero.")
+    """A tabela movimentacoes aceita apenas quantidades inteiras positivas."""
+    if type(quantidade) is not int or quantidade <= 0:
+        raise ValueError("A quantidade deve ser um inteiro maior que zero.")
 
 
-def _data_atual():
-    """
-    Retorna a data e hora atuais.
-    """
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-
-def _produto_existe(conexao, id_produto):
-    """
-    Verifica se o produto existe no banco.
-    """
-    cursor = conexao.execute(
-        "SELECT id FROM produtos WHERE id = ?",
-        (id_produto,),
-    )
-
-    return cursor.fetchone() is not None
+def _verificar_produto(conn, produto_id):
+    """Confirma a existência do produto e se ele está ativo."""
+    produto = conn.execute(
+        "SELECT estoque_atual, ativo FROM produtos WHERE id = ?", (produto_id,)
+    ).fetchone()
+    if produto is None:
+        raise ValueError("Produto não encontrado.")
+    if not produto["ativo"]:
+        raise ValueError("Produto inativo.")
+    return produto["estoque_atual"]
 
 
 def registrar_entrada(
-    id_produto,
+    produto_id,
     quantidade,
-    fornecedor,
-    data_entrada=None,
+    fornecedor_id=None,
+    funcionario_id=None,
     conexao=None,
 ):
-    """
-    Registra uma entrada no estoque e atualiza
-    a quantidade disponível do produto.
+    """Aumenta estoque e registra a entrada em uma única transação.
 
-    Retorna o ID da entrada criada.
+    fornecedor_id e funcionario_id são opcionais e precisam existir no banco
+    quando informados. Retorna o ID da movimentação.
     """
-
     _validar_quantidade(quantidade)
-
-    if not fornecedor or not str(fornecedor).strip():
-        raise ValueError("O fornecedor deve ser informado.")
-
     conn, deve_fechar = _obter_conexao(conexao)
-
     try:
-        if not _produto_existe(conn, id_produto):
-            raise ValueError("Produto não encontrado.")
-
-        data_entrada = data_entrada or _data_atual()
-
         with conn:
-
+            _verificar_produto(conn, produto_id)
+            conn.execute(
+                "UPDATE produtos SET estoque_atual = estoque_atual + ? WHERE id = ?",
+                (quantidade, produto_id),
+            )
             cursor = conn.execute(
                 """
-                INSERT INTO entradas
-                (
-                    id_produto,
-                    quantidade,
-                    data_entrada,
-                    fornecedor
-                )
-                VALUES (?, ?, ?, ?)
+                INSERT INTO movimentacoes
+                    (produto_id, tipo, quantidade, funcionario_id, fornecedor_id)
+                VALUES (?, 'ENTRADA', ?, ?, ?)
                 """,
-                (
-                    id_produto,
-                    quantidade,
-                    data_entrada,
-                    str(fornecedor).strip(),
-                ),
+                (produto_id, quantidade, funcionario_id, fornecedor_id),
             )
-
-            conn.execute(
-                """
-                UPDATE produtos
-                SET quantidade = quantidade + ?
-                WHERE id = ?
-                """,
-                (
-                    quantidade,
-                    id_produto,
-                ),
-            )
-
         return cursor.lastrowid
-
     finally:
         if deve_fechar:
             conn.close()
+
+
 def registrar_saida(
-    id_produto,
+    produto_id,
     quantidade,
-    destinatario,
-    data_saida=None,
+    destinatario=None,
+    funcionario_id=None,
     conexao=None,
 ):
+    """Diminui o saldo, bloqueando saídas superiores ao estoque atual.
+
+    O esquema oficial não possui coluna 'destinatario'; essa informação fica
+    registrada em 'observacao'. Retorna o ID da movimentação.
     """
-    Registra uma saída do estoque e atualiza
-    a quantidade disponível do produto.
-
-    Impede a saída quando não houver estoque
-    suficiente.
-
-    Retorna o ID da saída criada.
-    """
-
     _validar_quantidade(quantidade)
-
-    if not destinatario or not str(destinatario).strip():
-        raise ValueError("O destinatário deve ser informado.")
-
     conn, deve_fechar = _obter_conexao(conexao)
-
     try:
-        cursor = conn.execute(
-            """
-            SELECT quantidade
-            FROM produtos
-            WHERE id = ?
-            """,
-            (id_produto,),
-        )
-
-        produto = cursor.fetchone()
-
-        if produto is None:
-            raise ValueError("Produto não encontrado.")
-
-        saldo_disponivel = produto[0]
-
-        if quantidade > saldo_disponivel:
-            raise ValueError(
-                f"Estoque insuficiente. "
-                f"Disponível: {saldo_disponivel}."
-            )
-
-        data_saida = data_saida or _data_atual()
-
         with conn:
+            _verificar_produto(conn, produto_id)
+            # Condição no próprio UPDATE impede saldo negativo mesmo se o saldo
+            # tiver mudado entre a consulta inicial e a atualização.
+            alteracao = conn.execute(
+                """
+                UPDATE produtos
+                   SET estoque_atual = estoque_atual - ?
+                 WHERE id = ? AND ativo = 1 AND estoque_atual >= ?
+                """,
+                (quantidade, produto_id, quantidade),
+            )
+            if alteracao.rowcount != 1:
+                saldo = conn.execute(
+                    "SELECT estoque_atual FROM produtos WHERE id = ?",
+                    (produto_id,),
+                ).fetchone()["estoque_atual"]
+                raise ValueError(
+                    f"Estoque insuficiente. Disponível: {saldo}."
+                )
+
+            observacao = None
+            if destinatario is not None and str(destinatario).strip():
+                observacao = f"Destinatário: {str(destinatario).strip()}"
 
             cursor = conn.execute(
                 """
-                INSERT INTO saidas
-                (
-                    id_produto,
-                    quantidade,
-                    data_saida,
-                    destinatario
-                )
-                VALUES (?, ?, ?, ?)
+                INSERT INTO movimentacoes
+                    (produto_id, tipo, quantidade, funcionario_id, observacao)
+                VALUES (?, 'SAIDA', ?, ?, ?)
                 """,
-                (
-                    id_produto,
-                    quantidade,
-                    data_saida,
-                    str(destinatario).strip(),
-                ),
+                (produto_id, quantidade, funcionario_id, observacao),
             )
-
-            conn.execute(
-                """
-                UPDATE produtos
-                SET quantidade = quantidade - ?
-                WHERE id = ?
-                """,
-                (
-                    quantidade,
-                    id_produto,
-                ),
-            )
-
         return cursor.lastrowid
-
     finally:
         if deve_fechar:
             conn.close()
 
-def _linhas_para_dicts(cursor):
-    """
-    Converte o resultado de uma consulta SQL
-    em uma lista de dicionários.
-    """
 
-    colunas = [
-        descricao[0]
-        for descricao in cursor.description
-    ]
-
-    return [
-        dict(zip(colunas, linha))
-        for linha in cursor.fetchall()
-    ]
-
-
-def listar_entradas(id_produto=None, conexao=None):
-    """
-    Retorna todas as entradas do estoque.
-
-    É possível informar um produto específico
-    utilizando id_produto.
-    """
-
+def _listar(tipo=None, produto_id=None, conexao=None):
+    """Consulta o histórico com filtros opcionais e nomes associados."""
     conn, deve_fechar = _obter_conexao(conexao)
-
     try:
-
         sql = """
-            SELECT
-                e.id,
-                e.id_produto,
-                p.nome AS produto,
-                e.quantidade,
-                e.data_entrada,
-                e.fornecedor
-            FROM entradas e
-            JOIN produtos p
-                ON p.id = e.id_produto
+            SELECT m.id, m.produto_id, p.codigo, p.nome AS produto,
+                   m.tipo, m.quantidade, m.data_hora,
+                   m.funcionario_id, f.nome AS funcionario,
+                   m.fornecedor_id, fo.nome AS fornecedor, m.observacao
+              FROM movimentacoes AS m
+              JOIN produtos AS p ON p.id = m.produto_id
+              LEFT JOIN funcionarios AS f ON f.id = m.funcionario_id
+              LEFT JOIN fornecedores AS fo ON fo.id = m.fornecedor_id
         """
-
+        condicoes = []
         parametros = []
-
-        if id_produto is not None:
-            sql += """
-                WHERE e.id_produto = ?
-            """
-
-            parametros.append(id_produto)
-
-        sql += """
-            ORDER BY
-                e.data_entrada DESC,
-                e.id DESC
-        """
-
-        cursor = conn.execute(
-            sql,
-            parametros,
-        )
-
-        return _linhas_para_dicts(cursor)
-
+        if tipo is not None:
+            condicoes.append("m.tipo = ?")
+            parametros.append(tipo)
+        if produto_id is not None:
+            condicoes.append("m.produto_id = ?")
+            parametros.append(produto_id)
+        if condicoes:
+            sql += " WHERE " + " AND ".join(condicoes)
+        sql += " ORDER BY m.data_hora DESC, m.id DESC"
+        cursor = conn.execute(sql, parametros)
+        return [dict(linha) for linha in cursor.fetchall()]
     finally:
         if deve_fechar:
             conn.close()
 
 
-def listar_saidas(id_produto=None, conexao=None):
-    """
-    Retorna todas as saídas do estoque.
-
-    É possível informar um produto específico
-    utilizando id_produto.
-    """
-
-    conn, deve_fechar = _obter_conexao(conexao)
-
-    try:
-
-        sql = """
-            SELECT
-                s.id,
-                s.id_produto,
-                p.nome AS produto,
-                s.quantidade,
-                s.data_saida,
-                s.destinatario
-            FROM saidas s
-            JOIN produtos p
-                ON p.id = s.id_produto
-        """
-
-        parametros = []
-
-        if id_produto is not None:
-            sql += """
-                WHERE s.id_produto = ?
-            """
-
-            parametros.append(id_produto)
-
-        sql += """
-            ORDER BY
-                s.data_saida DESC,
-                s.id DESC
-        """
-
-        cursor = conn.execute(
-            sql,
-            parametros,
-        )
-
-        return _linhas_para_dicts(cursor)
-
-    finally:
-        if deve_fechar:
-            conn.close()
+def listar_movimentacoes(produto_id=None, conexao=None):
+    """Retorna entradas e saídas, mais recentes primeiro."""
+    return _listar(produto_id=produto_id, conexao=conexao)
 
 
-def listar_movimentacoes(id_produto=None, conexao=None):
-    """
-    Retorna entradas e saídas em um único
-    histórico de movimentações.
-    """
+def listar_entradas(produto_id=None, conexao=None):
+    """Retorna somente entradas, mais recentes primeiro."""
+    return _listar(tipo="ENTRADA", produto_id=produto_id, conexao=conexao)
 
-    conn, deve_fechar = _obter_conexao(conexao)
 
-    try:
-
-        sql = """
-            SELECT
-                e.id AS id,
-                'ENTRADA' AS tipo,
-                e.id_produto AS id_produto,
-                p.nome AS produto,
-                e.quantidade AS quantidade,
-                e.data_entrada AS data,
-                e.fornecedor AS responsavel
-            FROM entradas e
-
-            JOIN produtos p
-                ON p.id = e.id_produto
-
-            UNION ALL
-
-            SELECT
-                s.id AS id,
-                'SAIDA' AS tipo,
-                s.id_produto AS id_produto,
-                p.nome AS produto,
-                s.quantidade AS quantidade,
-                s.data_saida AS data,
-                s.destinatario AS responsavel
-            FROM saidas s
-
-            JOIN produtos p
-                ON p.id = s.id_produto
-        """
-
-        parametros = []
-
-        if id_produto is not None:
-
-            sql = f"""
-                SELECT *
-                FROM (
-                    {sql}
-                )
-                WHERE id_produto = ?
-                ORDER BY data DESC, id DESC
-            """
-
-            parametros.append(id_produto)
-
-        else:
-
-            sql += """
-                ORDER BY
-                    data DESC,
-                    id DESC
-            """
-
-        cursor = conn.execute(
-            sql,
-            parametros,
-        )
-
-        return _linhas_para_dicts(cursor)
-
-    finally:
-        if deve_fechar:
-            conn.close()
+def listar_saidas(produto_id=None, conexao=None):
+    """Retorna somente saídas, mais recentes primeiro."""
+    return _listar(tipo="SAIDA", produto_id=produto_id, conexao=conexao)
