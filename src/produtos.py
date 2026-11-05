@@ -14,6 +14,8 @@ Tabela esperada (criada por criar_tabelas() em src/banco.py):
 O campo estoque_atual é alterado apenas pelas movimentações (src/movimentacoes.py).
 """
 
+import unicodedata
+
 from src.banco import conectar
 from src.categorias import buscar_categoria
 
@@ -100,9 +102,16 @@ def cadastrar_produto(codigo, nome, preco, estoque_minimo, categoria_id):
     return buscar_produto(produto_id)
 
 
+def _normalizar(texto):
+    """Minúsculas e sem acentos: "Periféricos" -> "perifericos"."""
+    decomposto = unicodedata.normalize("NFD", str(texto))
+    sem_acento = "".join(c for c in decomposto if not unicodedata.combining(c))
+    return sem_acento.casefold()
+
+
 def _contem(texto, trecho):
-    # casefold + Python: o LIKE do SQLite não ignora acentos (É/é).
-    return trecho.strip().casefold() in texto.casefold()
+    # Feito em Python: o LIKE do SQLite não ignora acentos nem maiúsculas acentuadas.
+    return _normalizar(trecho.strip()) in _normalizar(texto)
 
 
 def listar_produtos(
@@ -139,6 +148,37 @@ def listar_produtos(
     return produtos
 
 
+def buscar_produtos(termo, incluir_inativos=False):
+    """Busca produtos por um termo no nome, no código ou no nome da categoria.
+
+    Não diferencia maiúsculas nem acentos. Devolve uma lista (vazia se nada
+    for encontrado), ordenada por nome. Termo vazio devolve lista vazia.
+    """
+    if termo is None or not str(termo).strip():
+        return []
+
+    sql = (
+        "SELECT p.id, p.codigo, p.nome, p.preco, p.estoque_minimo, "
+        "p.estoque_atual, p.categoria_id, p.ativo, c.nome "
+        "FROM produtos AS p LEFT JOIN categorias AS c ON c.id = p.categoria_id"
+    )
+    if not incluir_inativos:
+        sql += " WHERE p.ativo = 1"
+    sql += " ORDER BY p.nome"
+
+    conn = conectar()
+    encontrados = []
+    for linha in conn.execute(sql).fetchall():
+        nome_categoria = linha[8] or ""
+        if (
+            _contem(linha[2], termo)
+            or _contem(linha[1], termo)
+            or _contem(nome_categoria, termo)
+        ):
+            encontrados.append(_linha_para_dict(linha[:8]))
+    return encontrados
+
+
 def buscar_produto_por_codigo(codigo):
     """Devolve o produto com o código exato informado, ou None se não existir."""
     if codigo is None or not str(codigo).strip():
@@ -161,16 +201,18 @@ def buscar_produto(produto_id):
 
 def editar_produto(
     produto_id,
-    codigo=None,
     nome=None,
     preco=None,
     estoque_minimo=None,
     categoria_id=None,
+    codigo=None,
 ):
     """Altera os dados de um produto e devolve o produto atualizado.
 
-    Campos não informados (None) permanecem como estão. O saldo em estoque
-    não é editado aqui: ele só muda por entradas e saídas.
+    A ordem dos parâmetros segue o menu do main.py (id, nome, preco,
+    estoque_minimo, categoria_id); o código vem por último porque o menu não o
+    altera. Campos não informados (None) permanecem como estão. O saldo em
+    estoque não é editado aqui: ele só muda por entradas e saídas.
     """
     atual = buscar_produto(produto_id)
     if atual is None:

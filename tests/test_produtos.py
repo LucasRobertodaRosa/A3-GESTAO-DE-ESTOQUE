@@ -226,6 +226,7 @@ class TestProdutos(unittest.TestCase):
 
         self.assertEqual(self._nomes(nome="óptico"), ["Mouse Óptico"])
         self.assertEqual(self._nomes(nome="ÓPTICO"), ["Mouse Óptico"])
+        self.assertEqual(self._nomes(nome="optico"), ["Mouse Óptico"])
         self.assertEqual(self._nomes(nome="cabo"), ["Cabo USB"])
 
     def test_filtro_por_codigo_busca_trecho(self):
@@ -266,6 +267,63 @@ class TestProdutos(unittest.TestCase):
         self.assertEqual(
             self._nomes(nome="cabo", incluir_inativos=True), ["Cabo HDMI", "Cabo USB"]
         )
+
+
+    # ---------- compatibilidade com o menu do main.py ----------
+
+    def test_editar_produto_aceita_a_ordem_posicional_do_menu(self):
+        # main.py chama: editar_produto(id, nome, preco, estoque_minimo, categoria_id)
+        self._mouse()
+
+        editado = produtos.editar_produto(1, "Mouse Gamer", 70.0, 8, self.cabos)
+
+        self.assertEqual(editado["codigo"], "MS-01")
+        self.assertEqual(editado["nome"], "Mouse Gamer")
+        self.assertEqual(editado["preco"], 70.0)
+        self.assertEqual(editado["estoque_minimo"], 8)
+        self.assertEqual(editado["categoria_id"], self.cabos)
+
+    # ---------- busca por termo (nome, código ou categoria) ----------
+
+    def _ids(self, termo, **extra):
+        return [p["id"] for p in produtos.buscar_produtos(termo, **extra)]
+
+    def test_buscar_produtos_por_nome_codigo_e_categoria(self):
+        self._catalogo()  # 1 Mouse Óptico, 2 Teclado (Periféricos); 3 Cabo USB (Cabos); 4 inativo
+
+        self.assertEqual(self._ids("óptico"), [1])
+        self.assertEqual(self._ids("tc-01"), [2])
+        self.assertEqual(self._ids("periféricos"), [1, 2])
+
+    def test_buscar_produtos_ignora_caixa_e_acento(self):
+        self._catalogo()
+
+        self.assertEqual(self._ids("ÓPTICO"), [1])
+        self.assertEqual(self._ids("optico"), [1])
+        self.assertEqual(self._ids("PERIFERICOS"), [1, 2])
+        self.assertEqual(self._ids("periféricos"), self._ids("PERIFÉRICOS"))
+
+    def test_buscar_produtos_so_ativos_por_padrao(self):
+        self._catalogo()
+
+        self.assertEqual(self._ids("hdmi"), [])
+        self.assertEqual(self._ids("hdmi", incluir_inativos=True), [4])
+
+    def test_buscar_produtos_termo_vazio_ou_sem_resultado(self):
+        self._catalogo()
+
+        for termo in ("", "   ", None, "inexistente"):
+            with self.subTest(termo=termo):
+                self.assertEqual(produtos.buscar_produtos(termo), [])
+
+    def test_buscar_produtos_devolve_dados_completos(self):
+        self._catalogo()
+
+        produto = produtos.buscar_produtos("teclado")[0]
+
+        self.assertEqual(produto["codigo"], "TC-01")
+        self.assertEqual(produto["categoria_id"], self.perifericos)
+        self.assertTrue(produto["ativo"])
 
 
 if __name__ == "__main__":
