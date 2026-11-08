@@ -1,1 +1,51 @@
-controle-estoque
+
+# Python - caches e arquivos compilados
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ambientes virtuais
+.venv/
+venv/
+env/
+
+# Testes - resultados temporarios
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+test-results/
+
+# Banco SQLite local
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Configuracoes locais e credenciais
+.env
+.env.*
+!.env.example
+
+# Ferramentas e IDE
+.vscode/
+.idea/
+
+# Arquivos temporarios
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+
+# Pasta antiga do projeto
+controle-estoque/
+
+# Arquivos de distribuicao
+dist/
+build/
+*.egg-info/
