@@ -1,27 +1,48 @@
 """Testes de src/categorias.py.
 
-Usam um banco SQLite em memória (um novo a cada teste), sem tocar no banco real.
-Rodar a partir da raiz do projeto:  python -m pytest tests/test_categorias.py
+Usam o schema OFICIAL (banco.criar_tabelas) em um arquivo temporário novo a cada
+teste, sem tocar no estoque.db real.
+Rodar a partir da raiz do projeto:  python -m unittest tests.test_categorias
 """
 
+import shutil
 import sqlite3
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
-from src import categorias
+from src import banco, categorias
 
 
 class TestCategorias(unittest.TestCase):
     def setUp(self):
-        self.conn = sqlite3.connect(":memory:")
-        self.conn.execute(
-            "CREATE TABLE categorias (id INTEGER PRIMARY KEY AUTOINCREMENT, "
-            "nome TEXT NOT NULL UNIQUE, descricao TEXT)"
-        )
-        patcher = patch.object(categorias, "conectar", lambda: self.conn)
+        pasta = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, pasta, ignore_errors=True)
+        patcher = patch.object(banco, "CAMINHO_PADRAO", Path(pasta) / "teste.db")
         patcher.start()
         self.addCleanup(patcher.stop)
-        self.addCleanup(self.conn.close)
+
+        conexao = banco.conectar()
+        banco.criar_tabelas(conexao)
+        banco.fechar_conexao(conexao)
+
+    def _linhas_no_banco(self):
+        conexao = banco.conectar()
+        try:
+            return conexao.execute(
+                "SELECT id, nome, descricao, ativo FROM categorias ORDER BY id"
+            ).fetchall()
+        finally:
+            banco.fechar_conexao(conexao)
+
+    def test_categoria_cadastrada_fica_gravada_na_tabela_oficial(self):
+        categorias.cadastrar_categoria("Cabos", "Cabos em geral")
+
+        linhas = self._linhas_no_banco()
+
+        self.assertEqual(len(linhas), 1)
+        self.assertEqual(tuple(linhas[0]), (1, "Cabos", "Cabos em geral", 1))
 
     def test_cadastrar_categoria_devolve_dados_com_id(self):
         cat = categorias.cadastrar_categoria("Periféricos", "Teclados e mouses")
@@ -101,6 +122,53 @@ class TestCategorias(unittest.TestCase):
     def test_editar_categoria_inexistente(self):
         with self.assertRaises(ValueError):
             categorias.editar_categoria(99, nome="X")
+
+
+    # ---------- conexões ----------
+
+    def _rastrear_conexoes(self):
+        """Registra cada conexão aberta pelo módulo para conferir se foi fechada."""
+        abertas = []
+        original = banco.conectar
+
+        def conectar_rastreado(*args, **kwargs):
+            conexao = original(*args, **kwargs)
+            abertas.append(conexao)
+            return conexao
+
+        patcher = patch.object(categorias, "conectar", conectar_rastreado)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        return abertas
+
+    @staticmethod
+    def _esta_fechada(conexao):
+        try:
+            conexao.execute("SELECT 1")
+        except sqlite3.ProgrammingError:
+            return True
+        return False
+
+    def test_toda_operacao_fecha_a_conexao_que_abriu(self):
+        abertas = self._rastrear_conexoes()
+
+        categorias.cadastrar_categoria("Cabos")
+        categorias.listar_categorias()
+        categorias.buscar_categoria(1)
+        categorias.editar_categoria(1, descricao="Cabos em geral")
+
+        self.assertGreaterEqual(len(abertas), 4)
+        self.assertTrue(all(self._esta_fechada(c) for c in abertas))
+
+    def test_conexao_e_fechada_mesmo_quando_a_operacao_falha(self):
+        categorias.cadastrar_categoria("Cabos")
+        abertas = self._rastrear_conexoes()
+
+        with self.assertRaises(ValueError):
+            categorias.cadastrar_categoria("cabos")
+
+        self.assertTrue(abertas)
+        self.assertTrue(all(self._esta_fechada(c) for c in abertas))
 
 
 if __name__ == "__main__":
