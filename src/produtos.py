@@ -15,9 +15,20 @@ O campo estoque_atual é alterado apenas pelas movimentações (src/movimentacoe
 """
 
 import unicodedata
+from contextlib import contextmanager
 
-from src.banco import conectar
+from src.banco import conectar, fechar_conexao
 from src.categorias import buscar_categoria
+
+
+@contextmanager
+def _conexao():
+    """Abre uma conexão e garante o fechamento ao final, mesmo com erro."""
+    conn = conectar()
+    try:
+        yield conn
+    finally:
+        fechar_conexao(conn)
 
 _COLUNAS = "id, codigo, nome, preco, estoque_minimo, estoque_atual, categoria_id, ativo"
 
@@ -88,16 +99,16 @@ def cadastrar_produto(codigo, nome, preco, estoque_minimo, categoria_id):
     estoque_minimo = _validar_estoque_minimo(estoque_minimo)
     categoria_id = _validar_categoria(categoria_id)
 
-    conn = conectar()
-    with conn:
-        if _codigo_em_uso(conn, codigo):
-            raise ValueError(f"Já existe um produto com o código '{codigo}'.")
-        cursor = conn.execute(
-            "INSERT INTO produtos (codigo, nome, preco, estoque_minimo, "
-            "estoque_atual, categoria_id, ativo) VALUES (?, ?, ?, ?, 0, ?, 1)",
-            (codigo, nome, preco, estoque_minimo, categoria_id),
-        )
-        produto_id = cursor.lastrowid
+    with _conexao() as conn:
+        with conn:
+            if _codigo_em_uso(conn, codigo):
+                raise ValueError(f"Já existe um produto com o código '{codigo}'.")
+            cursor = conn.execute(
+                "INSERT INTO produtos (codigo, nome, preco, estoque_minimo, "
+                "estoque_atual, categoria_id, ativo) VALUES (?, ?, ?, ?, 0, ?, 1)",
+                (codigo, nome, preco, estoque_minimo, categoria_id),
+            )
+            produto_id = cursor.lastrowid
 
     return buscar_produto(produto_id)
 
@@ -136,10 +147,11 @@ def listar_produtos(
         sql += " WHERE " + " AND ".join(condicoes)
     sql += " ORDER BY nome"
 
-    conn = conectar()
-    produtos = [
-        _linha_para_dict(linha) for linha in conn.execute(sql, parametros).fetchall()
-    ]
+    with _conexao() as conn:
+        produtos = [
+            _linha_para_dict(linha)
+            for linha in conn.execute(sql, parametros).fetchall()
+        ]
 
     if nome is not None and nome.strip():
         produtos = [p for p in produtos if _contem(p["nome"], nome)]
@@ -166,9 +178,11 @@ def buscar_produtos(termo, incluir_inativos=False):
         sql += " WHERE p.ativo = 1"
     sql += " ORDER BY p.nome"
 
-    conn = conectar()
+    with _conexao() as conn:
+        linhas = conn.execute(sql).fetchall()
+
     encontrados = []
-    for linha in conn.execute(sql).fetchall():
+    for linha in linhas:
         nome_categoria = linha[8] or ""
         if (
             _contem(linha[2], termo)
@@ -183,8 +197,9 @@ def buscar_produto_por_codigo(codigo):
     """Devolve o produto com o código exato informado, ou None se não existir."""
     if codigo is None or not str(codigo).strip():
         return None
-    conn = conectar()
-    for linha in conn.execute(f"SELECT {_COLUNAS} FROM produtos").fetchall():
+    with _conexao() as conn:
+        linhas = conn.execute(f"SELECT {_COLUNAS} FROM produtos").fetchall()
+    for linha in linhas:
         if linha[1].casefold() == str(codigo).strip().casefold():
             return _linha_para_dict(linha)
     return None
@@ -192,10 +207,10 @@ def buscar_produto_por_codigo(codigo):
 
 def buscar_produto(produto_id):
     """Devolve o produto com o id informado, ou None se não existir."""
-    conn = conectar()
-    linha = conn.execute(
-        f"SELECT {_COLUNAS} FROM produtos WHERE id = ?", (produto_id,)
-    ).fetchone()
+    with _conexao() as conn:
+        linha = conn.execute(
+            f"SELECT {_COLUNAS} FROM produtos WHERE id = ?", (produto_id,)
+        ).fetchone()
     return _linha_para_dict(linha) if linha else None
 
 
@@ -232,15 +247,15 @@ def editar_produto(
         else _validar_categoria(categoria_id)
     )
 
-    conn = conectar()
-    with conn:
-        if _codigo_em_uso(conn, novo_codigo, ignorar_id=produto_id):
-            raise ValueError(f"Já existe um produto com o código '{novo_codigo}'.")
-        conn.execute(
-            "UPDATE produtos SET codigo = ?, nome = ?, preco = ?, "
-            "estoque_minimo = ?, categoria_id = ? WHERE id = ?",
-            (novo_codigo, novo_nome, novo_preco, novo_minimo, nova_categoria, produto_id),
-        )
+    with _conexao() as conn:
+        with conn:
+            if _codigo_em_uso(conn, novo_codigo, ignorar_id=produto_id):
+                raise ValueError(f"Já existe um produto com o código '{novo_codigo}'.")
+            conn.execute(
+                "UPDATE produtos SET codigo = ?, nome = ?, preco = ?, "
+                "estoque_minimo = ?, categoria_id = ? WHERE id = ?",
+                (novo_codigo, novo_nome, novo_preco, novo_minimo, nova_categoria, produto_id),
+            )
 
     return buscar_produto(produto_id)
 
@@ -250,8 +265,8 @@ def desativar_produto(produto_id):
     if buscar_produto(produto_id) is None:
         raise ValueError(f"Produto {produto_id} não encontrado.")
 
-    conn = conectar()
-    with conn:
-        conn.execute("UPDATE produtos SET ativo = 0 WHERE id = ?", (produto_id,))
+    with _conexao() as conn:
+        with conn:
+            conn.execute("UPDATE produtos SET ativo = 0 WHERE id = ?", (produto_id,))
 
     return buscar_produto(produto_id)
