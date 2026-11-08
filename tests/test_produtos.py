@@ -6,6 +6,7 @@ Rodar a partir da raiz do projeto:  python -m unittest tests.test_produtos
 """
 
 import shutil
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -352,6 +353,60 @@ class TestProdutos(unittest.TestCase):
         self.assertEqual(produto["codigo"], "TC-01")
         self.assertEqual(produto["categoria_id"], self.perifericos)
         self.assertTrue(produto["ativo"])
+
+
+    # ---------- conexões ----------
+
+    def _rastrear_conexoes(self):
+        """Registra cada conexão aberta pelos módulos para conferir se foi fechada."""
+        abertas = []
+        original = banco.conectar
+
+        def conectar_rastreado(*args, **kwargs):
+            conexao = original(*args, **kwargs)
+            abertas.append(conexao)
+            return conexao
+
+        for modulo in (categorias, produtos):
+            patcher = patch.object(modulo, "conectar", conectar_rastreado)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        return abertas
+
+    @staticmethod
+    def _esta_fechada(conexao):
+        try:
+            conexao.execute("SELECT 1")
+        except sqlite3.ProgrammingError:
+            return True
+        return False
+
+    def test_toda_operacao_fecha_a_conexao_que_abriu(self):
+        abertas = self._rastrear_conexoes()
+
+        self._mouse()
+        produtos.listar_produtos()
+        produtos.listar_produtos(nome="mouse")
+        produtos.buscar_produto(1)
+        produtos.buscar_produto_por_codigo("MS-01")
+        produtos.buscar_produtos("mouse")
+        produtos.editar_produto(1, nome="Mouse Gamer")
+        produtos.desativar_produto(1)
+
+        self.assertGreaterEqual(len(abertas), 8)
+        self.assertTrue(all(self._esta_fechada(c) for c in abertas))
+
+    def test_conexao_e_fechada_mesmo_quando_a_operacao_falha(self):
+        self._mouse()
+        abertas = self._rastrear_conexoes()
+
+        with self.assertRaises(ValueError):
+            self._mouse(codigo="ms-01")  # código repetido, falha dentro da transação
+        with self.assertRaises(ValueError):
+            produtos.editar_produto(1, categoria_id=99)
+
+        self.assertTrue(abertas)
+        self.assertTrue(all(self._esta_fechada(c) for c in abertas))
 
 
 if __name__ == "__main__":

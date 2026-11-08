@@ -6,6 +6,7 @@ Rodar a partir da raiz do projeto:  python -m unittest tests.test_categorias
 """
 
 import shutil
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -121,6 +122,53 @@ class TestCategorias(unittest.TestCase):
     def test_editar_categoria_inexistente(self):
         with self.assertRaises(ValueError):
             categorias.editar_categoria(99, nome="X")
+
+
+    # ---------- conexões ----------
+
+    def _rastrear_conexoes(self):
+        """Registra cada conexão aberta pelo módulo para conferir se foi fechada."""
+        abertas = []
+        original = banco.conectar
+
+        def conectar_rastreado(*args, **kwargs):
+            conexao = original(*args, **kwargs)
+            abertas.append(conexao)
+            return conexao
+
+        patcher = patch.object(categorias, "conectar", conectar_rastreado)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        return abertas
+
+    @staticmethod
+    def _esta_fechada(conexao):
+        try:
+            conexao.execute("SELECT 1")
+        except sqlite3.ProgrammingError:
+            return True
+        return False
+
+    def test_toda_operacao_fecha_a_conexao_que_abriu(self):
+        abertas = self._rastrear_conexoes()
+
+        categorias.cadastrar_categoria("Cabos")
+        categorias.listar_categorias()
+        categorias.buscar_categoria(1)
+        categorias.editar_categoria(1, descricao="Cabos em geral")
+
+        self.assertGreaterEqual(len(abertas), 4)
+        self.assertTrue(all(self._esta_fechada(c) for c in abertas))
+
+    def test_conexao_e_fechada_mesmo_quando_a_operacao_falha(self):
+        categorias.cadastrar_categoria("Cabos")
+        abertas = self._rastrear_conexoes()
+
+        with self.assertRaises(ValueError):
+            categorias.cadastrar_categoria("cabos")
+
+        self.assertTrue(abertas)
+        self.assertTrue(all(self._esta_fechada(c) for c in abertas))
 
 
 if __name__ == "__main__":
