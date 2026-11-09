@@ -1,44 +1,73 @@
 """Testes de src/produtos.py.
 
-Usam um banco SQLite em memória (um novo a cada teste), sem tocar no banco real.
-Rodar a partir da raiz do projeto:  python -m pytest tests/test_produtos.py
+Usam o schema OFICIAL (banco.criar_tabelas) em um arquivo temporário novo a cada
+teste, sem tocar no estoque.db real.
+Rodar a partir da raiz do projeto:  python -m unittest tests.test_produtos
 """
 
+import shutil
 import sqlite3
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
-from src import categorias, produtos
+from src import banco, categorias, produtos
 
 
 class TestProdutos(unittest.TestCase):
     def setUp(self):
-        self.conn = sqlite3.connect(":memory:")
-        self.conn.executescript(
-            """
-            CREATE TABLE categorias (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nome TEXT NOT NULL UNIQUE,
-                descricao TEXT);
-            CREATE TABLE produtos (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                codigo TEXT NOT NULL UNIQUE,
-                nome TEXT NOT NULL,
-                preco REAL NOT NULL,
-                estoque_minimo INTEGER NOT NULL DEFAULT 0,
-                estoque_atual INTEGER NOT NULL DEFAULT 0,
-                categoria_id INTEGER NOT NULL REFERENCES categorias(id),
-                ativo INTEGER NOT NULL DEFAULT 1);
-            """
-        )
-        for modulo in (categorias, produtos):
-            patcher = patch.object(modulo, "conectar", lambda: self.conn)
-            patcher.start()
-            self.addCleanup(patcher.stop)
-        self.addCleanup(self.conn.close)
+        pasta = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, pasta, ignore_errors=True)
+        patcher = patch.object(banco, "CAMINHO_PADRAO", Path(pasta) / "teste.db")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+        conexao = banco.conectar()
+        banco.criar_tabelas(conexao)
+        banco.fechar_conexao(conexao)
 
         self.perifericos = categorias.cadastrar_categoria("Periféricos")["id"]
         self.cabos = categorias.cadastrar_categoria("Cabos")["id"]
+
+    def _definir_saldo(self, produto_id, saldo):
+        """Simula uma movimentação: só o módulo de movimentações altera o saldo."""
+        conexao = banco.conectar()
+        try:
+            with conexao:
+                conexao.execute(
+                    "UPDATE produtos SET estoque_atual = ? WHERE id = ?",
+                    (saldo, produto_id),
+                )
+        finally:
+            banco.fechar_conexao(conexao)
+
+    def _linhas_no_banco(self):
+        conexao = banco.conectar()
+        try:
+            return conexao.execute(
+                "SELECT codigo, nome, preco, estoque_minimo, estoque_atual, "
+                "categoria_id, ativo FROM produtos ORDER BY id"
+            ).fetchall()
+        finally:
+            banco.fechar_conexao(conexao)
+
+    def test_produto_cadastrado_fica_gravado_na_tabela_oficial(self):
+        self._mouse()
+
+        linhas = self._linhas_no_banco()
+
+        self.assertEqual(
+            [tuple(l) for l in linhas],
+            [("MS-01", "Mouse Óptico", 49.9, 5, 0, self.perifericos, 1)],
+        )
+
+    def test_desativar_produto_grava_ativo_zero_na_tabela_oficial(self):
+        self._mouse()
+
+        produtos.desativar_produto(1)
+
+        self.assertEqual(self._linhas_no_banco()[0]["ativo"], 0)
 
     def _mouse(self, **extra):
         dados = dict(
@@ -186,7 +215,7 @@ class TestProdutos(unittest.TestCase):
 
     def test_editar_produto_nao_altera_o_saldo_em_estoque(self):
         self._mouse()
-        self.conn.execute("UPDATE produtos SET estoque_atual = 12 WHERE id = 1")
+        self._definir_saldo(1, 12)
 
         editado = produtos.editar_produto(1, nome="Mouse Gamer")
 
@@ -226,6 +255,7 @@ class TestProdutos(unittest.TestCase):
 
         self.assertEqual(self._nomes(nome="óptico"), ["Mouse Óptico"])
         self.assertEqual(self._nomes(nome="ÓPTICO"), ["Mouse Óptico"])
+        self.assertEqual(self._nomes(nome="optico"), ["Mouse Óptico"])
         self.assertEqual(self._nomes(nome="cabo"), ["Cabo USB"])
 
     def test_filtro_por_codigo_busca_trecho(self):
@@ -266,6 +296,117 @@ class TestProdutos(unittest.TestCase):
         self.assertEqual(
             self._nomes(nome="cabo", incluir_inativos=True), ["Cabo HDMI", "Cabo USB"]
         )
+
+
+    # ---------- compatibilidade com o menu do main.py ----------
+
+    def test_editar_produto_aceita_a_ordem_posicional_do_menu(self):
+        # main.py chama: editar_produto(id, nome, preco, estoque_minimo, categoria_id)
+        self._mouse()
+
+        editado = produtos.editar_produto(1, "Mouse Gamer", 70.0, 8, self.cabos)
+
+        self.assertEqual(editado["codigo"], "MS-01")
+        self.assertEqual(editado["nome"], "Mouse Gamer")
+        self.assertEqual(editado["preco"], 70.0)
+        self.assertEqual(editado["estoque_minimo"], 8)
+        self.assertEqual(editado["categoria_id"], self.cabos)
+
+    # ---------- busca por termo (nome, código ou categoria) ----------
+
+    def _ids(self, termo, **extra):
+        return [p["id"] for p in produtos.buscar_produtos(termo, **extra)]
+
+    def test_buscar_produtos_por_nome_codigo_e_categoria(self):
+        self._catalogo()  # 1 Mouse Óptico, 2 Teclado (Periféricos); 3 Cabo USB (Cabos); 4 inativo
+
+        self.assertEqual(self._ids("óptico"), [1])
+        self.assertEqual(self._ids("tc-01"), [2])
+        self.assertEqual(self._ids("periféricos"), [1, 2])
+
+    def test_buscar_produtos_ignora_caixa_e_acento(self):
+        self._catalogo()
+
+        self.assertEqual(self._ids("ÓPTICO"), [1])
+        self.assertEqual(self._ids("optico"), [1])
+        self.assertEqual(self._ids("PERIFERICOS"), [1, 2])
+        self.assertEqual(self._ids("periféricos"), self._ids("PERIFÉRICOS"))
+
+    def test_buscar_produtos_so_ativos_por_padrao(self):
+        self._catalogo()
+
+        self.assertEqual(self._ids("hdmi"), [])
+        self.assertEqual(self._ids("hdmi", incluir_inativos=True), [4])
+
+    def test_buscar_produtos_termo_vazio_ou_sem_resultado(self):
+        self._catalogo()
+
+        for termo in ("", "   ", None, "inexistente"):
+            with self.subTest(termo=termo):
+                self.assertEqual(produtos.buscar_produtos(termo), [])
+
+    def test_buscar_produtos_devolve_dados_completos(self):
+        self._catalogo()
+
+        produto = produtos.buscar_produtos("teclado")[0]
+
+        self.assertEqual(produto["codigo"], "TC-01")
+        self.assertEqual(produto["categoria_id"], self.perifericos)
+        self.assertTrue(produto["ativo"])
+
+
+    # ---------- conexões ----------
+
+    def _rastrear_conexoes(self):
+        """Registra cada conexão aberta pelos módulos para conferir se foi fechada."""
+        abertas = []
+        original = banco.conectar
+
+        def conectar_rastreado(*args, **kwargs):
+            conexao = original(*args, **kwargs)
+            abertas.append(conexao)
+            return conexao
+
+        for modulo in (categorias, produtos):
+            patcher = patch.object(modulo, "conectar", conectar_rastreado)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        return abertas
+
+    @staticmethod
+    def _esta_fechada(conexao):
+        try:
+            conexao.execute("SELECT 1")
+        except sqlite3.ProgrammingError:
+            return True
+        return False
+
+    def test_toda_operacao_fecha_a_conexao_que_abriu(self):
+        abertas = self._rastrear_conexoes()
+
+        self._mouse()
+        produtos.listar_produtos()
+        produtos.listar_produtos(nome="mouse")
+        produtos.buscar_produto(1)
+        produtos.buscar_produto_por_codigo("MS-01")
+        produtos.buscar_produtos("mouse")
+        produtos.editar_produto(1, nome="Mouse Gamer")
+        produtos.desativar_produto(1)
+
+        self.assertGreaterEqual(len(abertas), 8)
+        self.assertTrue(all(self._esta_fechada(c) for c in abertas))
+
+    def test_conexao_e_fechada_mesmo_quando_a_operacao_falha(self):
+        self._mouse()
+        abertas = self._rastrear_conexoes()
+
+        with self.assertRaises(ValueError):
+            self._mouse(codigo="ms-01")  # código repetido, falha dentro da transação
+        with self.assertRaises(ValueError):
+            produtos.editar_produto(1, categoria_id=99)
+
+        self.assertTrue(abertas)
+        self.assertTrue(all(self._esta_fechada(c) for c in abertas))
 
 
 if __name__ == "__main__":
