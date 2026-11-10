@@ -26,7 +26,6 @@ A3-GESTAO-DE-ESTOQUE/
 │   ├── autenticacao.py
 │   ├── relatorios.py
 │   ├── auditoria.py
-│   └── consultas.py
 ├── tests/
 │   └── test_*.py
 ├── data/
