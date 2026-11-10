@@ -10,3 +10,6 @@ ruff>=0.11,<1
 
 # Hash de senhas - modulo de autenticacao
 bcrypt>=4,<6
+
+# Front-end web
+flask>=3,<4
