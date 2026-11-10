@@ -1,0 +1,9 @@
+# Regras de análise estática do projeto. Fixadas aqui para o resultado não
+# mudar quando uma versão nova do ruff alterar o conjunto padrão de regras.
+line-length = 100
+target-version = "py311"
+
+[lint]
+# E4/E7/E9: erros de sintaxe e de estilo essenciais; F: erros do pyflakes
+# (imports não usados, nomes indefinidos, variáveis não usadas).
+select = ["E4", "E7", "E9", "F"]
