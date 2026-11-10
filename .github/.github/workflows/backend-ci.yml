@@ -1,0 +1,52 @@
+
+name: Backend CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualidade:
+    name: Testes, cobertura e Ruff
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Obter codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Testes e coleta de cobertura
+        run: python -m coverage run --source=src -m pytest tests/ -v
+
+      - name: Conferir cobertura minima de 75 por cento
+        run: |
+          python -m coverage report -m --fail-under=75
+          python -m coverage xml
+
+      - name: Analise estatica com Ruff
+        run: python -m ruff check .
+
+      - name: Salvar relatorio de cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cobertura-backend
+          path: coverage.xml
+          if-no-files-found: ignore
