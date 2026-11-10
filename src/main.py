@@ -463,7 +463,7 @@ MENUS = [
              ESCRITA, (auditoria.CADASTRO, "produto")),
         Item("Listar produtos", "produtos", "listar_produtos"),
         Item("Buscar produto (nome, código ou categoria)", "produtos",
-             "buscar_produto", (("termo", "Busca: ", "texto"),)),
+            "buscar_produtos", (("termo", "Busca: ", "texto"),)),
         Item("Editar produto", "produtos", "editar_produto",
              (_ID,
               ("nome", "Novo nome: ", "texto"),
