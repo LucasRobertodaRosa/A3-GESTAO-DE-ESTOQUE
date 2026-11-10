@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block titulo %}Primeiro acesso — Gestão de Estoque{% endblock %}
+{% block conteudo %}
+<h1>Primeiro acesso</h1>
+<p>Nenhum funcionário cadastrado. Crie o administrador inicial.</p>
+<form method="post" class="formulario">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label>Nome
+    <input name="nome" value="{{ valores.nome }}" required autofocus>
+  </label>
+  <label>Login
+    <input name="login" value="{{ valores.login }}" autocomplete="username" required>
+  </label>
+  <label>Senha
+    <input name="senha" type="password" autocomplete="new-password" required minlength="6">
+  </label>
+  <label>Confirme a senha
+    <input name="confirmacao" type="password" autocomplete="new-password" required minlength="6">
+  </label>
+  <button class="botao" type="submit">Criar administrador</button>
+</form>
+{% endblock %}

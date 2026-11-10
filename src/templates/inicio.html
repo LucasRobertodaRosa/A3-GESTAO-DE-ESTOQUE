@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block conteudo %}
+<h1>Painel</h1>
+<section class="indicadores" aria-label="Indicadores gerais">
+  <div class="indicador"><span>Produtos ativos</span><strong>{{ indicadores.total_produtos }}</strong></div>
+  <div class="indicador {% if indicadores.produtos_abaixo_minimo %}alerta{% endif %}"><span>Abaixo do mínimo</span><strong>{{ indicadores.produtos_abaixo_minimo }}</strong></div>
+  <div class="indicador {% if indicadores.produtos_sem_estoque %}alerta{% endif %}"><span>Sem estoque</span><strong>{{ indicadores.produtos_sem_estoque }}</strong></div>
+  <div class="indicador"><span>Unidades em estoque</span><strong>{{ indicadores.unidades_em_estoque }}</strong></div>
+  <div class="indicador"><span>Valor do estoque</span><strong>R$ {{ '%.2f'|format(indicadores.valor_total_estoque)|replace('.', ',') }}</strong></div>
+  <div class="indicador"><span>Entradas / saídas (unid.)</span><strong>{{ indicadores.total_entradas }} / {{ indicadores.total_saidas }}</strong></div>
+</section>
+<p class="dica">Escolha uma opção no menu ao lado.</p>
+{% endblock %}

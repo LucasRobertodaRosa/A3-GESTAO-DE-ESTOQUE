@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}Gestão de Estoque{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='estilo.css') }}">
+</head>
+<body>
+{% if usuario %}
+<header class="topo">
+  <a class="marca" href="{{ url_for('inicio') }}">Gestão de Estoque</a>
+  <div class="usuario">
+    <span>{{ usuario.nome }} <small class="etiqueta">{{ usuario.perfil }}</small></span>
+    <form method="post" action="{{ url_for('sair') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="botao secundario" type="submit">Sair</button>
+    </form>
+  </div>
+</header>
+<div class="layout">
+  <nav class="menu" aria-label="Menu principal">
+    {% for gi, titulo, itens in menu %}
+    <details {% if grupo == titulo %}open{% endif %}>
+      <summary>{{ titulo }}</summary>
+      <ul>
+        {% for ii, it in itens %}
+        <li><a href="{{ url_for('operacao', gi=gi, ii=ii) }}"
+               {% if item is defined and item is sameas it %}aria-current="page"{% endif %}>{{ it.rotulo }}</a></li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% endfor %}
+  </nav>
+  <main class="conteudo">
+{% else %}
+<div class="centro">
+  <main class="cartao-entrada">
+{% endif %}
+    {% for categoria, mensagem in get_flashed_messages(with_categories=true) %}
+    <p class="aviso {{ categoria }}" role="status">{{ mensagem }}</p>
+    {% endfor %}
+    {% block conteudo %}{% endblock %}
+  </main>
+{% if usuario %}</div>{% else %}</div>{% endif %}
+<script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</body>
+</html>

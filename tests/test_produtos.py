@@ -58,7 +58,7 @@ class TestProdutos(unittest.TestCase):
         linhas = self._linhas_no_banco()
 
         self.assertEqual(
-            [tuple(l) for l in linhas],
+            [tuple(linha) for linha in linhas],
             [("MS-01", "Mouse Óptico", 49.9, 5, 0, self.perifericos, 1)],
         )
 

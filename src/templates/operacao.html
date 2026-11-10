@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block titulo %}{{ item.rotulo }} — Gestão de Estoque{% endblock %}
+{% block conteudo %}
+<p class="trilha">{{ grupo }}</p>
+<h1>{{ item.rotulo }}</h1>
+
+{% if erro %}<p class="aviso erro" role="alert">{{ erro }}</p>{% endif %}
+
+{% if campos or item.auditoria %}
+<form method="post" class="formulario"
+      {% if item.rotulo.startswith('Desativar') %}data-confirmar="Confirma a desativação?"{% endif %}>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {% for campo in campos %}
+  <label>{{ campo.rotulo }}{% if campo.opcional %} <small>(opcional)</small>{% endif %}
+    {% if campo.tipo == 'perfil' %}
+    <select name="{{ campo.nome }}" required>
+      {% for p in ('ADMIN', 'ESTOQUISTA', 'CONSULTA') %}
+      <option value="{{ p }}" {% if valores.get(campo.nome) == p %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+    {% elif campo.tipo == 'senha' %}
+    <input name="{{ campo.nome }}" type="password" autocomplete="new-password" {% if not campo.opcional %}required{% endif %}>
+    {% elif campo.tipo == 'int' %}
+    <input name="{{ campo.nome }}" type="number" step="1" value="{{ valores.get(campo.nome, '') }}" {% if not campo.opcional %}required{% endif %}>
+    {% elif campo.tipo == 'decimal' %}
+    <input name="{{ campo.nome }}" inputmode="decimal" placeholder="0,00" value="{{ valores.get(campo.nome, '') }}" {% if not campo.opcional %}required{% endif %}>
+    {% elif campo.tipo == 'data' %}
+    <input name="{{ campo.nome }}" type="date" value="{{ valores.get(campo.nome, '') }}" {% if not campo.opcional %}required{% endif %}>
+    {% else %}
+    <input name="{{ campo.nome }}" value="{{ valores.get(campo.nome, '') }}" {% if not campo.opcional %}required{% endif %}>
+    {% endif %}
+    {% if erros.get(campo.nome) %}<span class="erro-campo">{{ erros[campo.nome] }}</span>{% endif %}
+  </label>
+  {% endfor %}
+  <button class="botao" type="submit">{{ 'Consultar' if not item.auditoria else 'Confirmar' }}</button>
+</form>
+{% endif %}
+
+{% if resultado %}
+<section class="resultado" aria-label="Resultado">
+  {% if resultado.tipo == 'tabela' %}
+  <div class="tabela-rolavel">
+    <table>
+      <thead><tr>{% for c in resultado.colunas %}<th>{{ c }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for linha in resultado.linhas %}
+        <tr>{% for v in linha %}<td>{{ v }}</td>{% endfor %}</tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="total">{{ resultado.total }} registro(s).</p>
+  {% elif resultado.tipo == 'detalhes' %}
+  <dl>
+    {% for chave, valor in resultado.pares %}<dt>{{ chave }}</dt><dd>{{ valor }}</dd>{% endfor %}
+  </dl>
+  {% else %}
+  <p>{{ resultado.texto }}</p>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}
