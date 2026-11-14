@@ -1,0 +1,9 @@
+{# Medidor de nível: trilho, preenchimento e marca do estoque mínimo. SVG para não precisar de style inline. #}
+{% macro medidor(nivel, texto) %}
+<svg class="medidor {{ nivel.classe }}" viewBox="0 0 100 10" preserveAspectRatio="none" role="img"
+     aria-label="{{ texto }}">
+  <rect class="trilho" width="100" height="10" rx="2"/>
+  <rect class="enchimento" width="{{ nivel.preenchido }}" height="10" rx="2"/>
+  <line class="marca" x1="{{ nivel.marca }}" x2="{{ nivel.marca }}" y1="-1" y2="11"/>
+</svg>
+{% endmacro %}

@@ -348,6 +348,22 @@ class TestPermissoes(BaseWeb):
         self.assertEqual(cliente.get(_url_da_opcao("Cadastrar categoria")).status_code, 200)
         self.assertEqual(cliente.get(_url_da_opcao("Cadastrar funcionário")).status_code, 403)
 
+    def test_atalhos_do_painel_respeitam_o_perfil(self):
+        self.assertEqual(
+            [r for r, _, _ in web._atalhos("CONSULTA")], [],
+        )
+        self.assertEqual(
+            [r for r, _, _ in web._atalhos("ESTOQUISTA")],
+            ["Registrar entrada", "Registrar saída", "Cadastrar produto"],
+        )
+
+    def test_painel_da_consulta_nao_tem_atalhos_de_escrita(self):
+        cliente = self._logar_como("lia")
+
+        painel = self._html(cliente.get("/"))
+
+        self.assertNotIn("Registrar entrada", painel)
+
     def test_cada_perfil_ve_so_as_opcoes_permitidas_no_menu(self):
         for perfil in main.PERFIS:
             visiveis = web._menus_visiveis(perfil)
@@ -395,10 +411,11 @@ class TestFluxoDeEstoque(BaseWeb):
         self.assertIn("Estoque insuficiente", self._html(excesso))
         relatorio = self._html(self.cliente.get(_url_da_opcao("Estoque atual")))
         self.assertIn("TEC-01", relatorio)
-        self.assertIn("<td>12</td>", relatorio)
+        self.assertIn('<span class="valor">12</span>', relatorio)
+        self.assertIn("Em dia", relatorio)
         historico = self._html(self.cliente.get(_url_da_opcao("Histórico de movimentações")))
-        self.assertIn("ENTRADA", historico)
-        self.assertIn("SAIDA", historico)
+        self.assertIn("selo entrada", historico)
+        self.assertIn("selo saida", historico)
 
     def test_movimentacao_e_registrada_na_auditoria_com_o_usuario_logado(self):
         self._cadastrar_categoria_e_produto()
@@ -416,7 +433,33 @@ class TestFluxoDeEstoque(BaseWeb):
         painel = self._html(self.cliente.get("/"))
 
         self.assertIn("Produtos ativos", painel)
-        self.assertIn("R$ 1498,50", painel)
+        self.assertIn("R$ 1.498,50", painel)
+
+    def test_painel_lista_o_que_precisa_repor_com_medidor(self):
+        self._cadastrar_categoria_e_produto()          # mínimo 2, saldo 0
+        self._post(_url_da_opcao("Registrar entrada"), produto_id="1", quantidade="1", fornecedor_id="")
+
+        painel = self._html(self.cliente.get("/"))
+
+        self.assertIn("Para repor", painel)
+        self.assertIn("Teclado USB", painel)
+        self.assertIn("1 de 2 no mínimo", painel)
+        self.assertIn('class="medidor baixo"', painel)
+
+    def test_painel_sem_pendencias_avisa_que_esta_tudo_em_dia(self):
+        self._cadastrar_categoria_e_produto()
+        self._post(_url_da_opcao("Registrar entrada"), produto_id="1", quantidade="9", fornecedor_id="")
+
+        painel = self._html(self.cliente.get("/"))
+
+        self.assertIn("Nenhum produto abaixo do estoque mínimo.", painel)
+        self.assertNotIn('class="medidor', painel)
+
+    def test_painel_mostra_atalhos_das_acoes_mais_usadas(self):
+        painel = self._html(self.cliente.get("/"))
+
+        for rotulo in ("Registrar entrada", "Registrar saída", "Cadastrar produto"):
+            self.assertIn(rotulo, painel)
 
     def test_busca_de_produto_por_texto_sem_acento(self):
         self._cadastrar_categoria_e_produto()
@@ -585,7 +628,7 @@ class TestPrepararResultado(unittest.TestCase):
             "none": (None, "texto", "Operação concluída com sucesso."),
             "id": (7, "texto", "Concluído. ID: 7"),
             "texto": ("ok", "texto", "ok"),
-            "lista vazia": ([], "texto", "Nenhum registro encontrado."),
+            "lista vazia": ([], "vazio", "Nenhum registro encontrado."),
         }
         for nome, (entrada, tipo, texto) in casos.items():
             with self.subTest(nome):
@@ -596,9 +639,69 @@ class TestPrepararResultado(unittest.TestCase):
         saida = web._preparar_resultado([{"id": 1, "preco": 9.5}, {"id": 2, "nome": None}])
 
         self.assertEqual(saida["tipo"], "tabela")
-        self.assertEqual(saida["colunas"], ["Id", "Preco", "Nome"])
-        self.assertEqual(saida["linhas"], [["1", "9,50", "-"], ["2", "-", "-"]])
+        self.assertEqual([c["rotulo"] for c in saida["colunas"]], ["ID", "Preço", "Nome"])
+        self.assertEqual(
+            [[c["texto"] for c in linha] for linha in saida["linhas"]],
+            [["1", "R$ 9,50", "-"], ["2", "-", "-"]],
+        )
         self.assertEqual(saida["total"], 2)
+
+    def test_situacao_e_tipo_viram_selos(self):
+        saida = web._preparar_resultado([
+            {"situacao": "OK", "tipo": "ENTRADA", "ativo": 1},
+            {"situacao": "BAIXO", "tipo": "SAIDA", "ativo": 0},
+            {"situacao": "SEM ESTOQUE", "tipo": "SAIDA", "ativo": True},
+        ])
+
+        selos = [[(c["selo"], c["texto"]) for c in linha] for linha in saida["linhas"]]
+        self.assertEqual(selos[0], [("ok", "Em dia"), ("entrada", "Entrada"), ("ok", "Ativo")])
+        self.assertEqual(selos[1], [("baixo", "Baixo"), ("saida", "Saída"), ("inativo", "Inativo")])
+        self.assertEqual(selos[2][0], ("zero", "Sem estoque"))
+
+    def test_estoque_com_minimo_ganha_medidor_de_nivel(self):
+        saida = web._preparar_resultado([
+            {"estoque_atual": 12, "estoque_minimo": 5},
+            {"estoque_atual": 3, "estoque_minimo": 5},
+            {"estoque_atual": 0, "estoque_minimo": 5},
+        ])
+
+        niveis = [linha[0]["nivel"] for linha in saida["linhas"]]
+        self.assertEqual([n["classe"] for n in niveis], ["ok", "baixo", "zero"])
+        self.assertEqual(niveis[2]["preenchido"], 0)
+
+    def test_medidor_usa_o_dobro_do_minimo_como_escala(self):
+        self.assertEqual(web._nivel(5, 5), {"classe": "ok", "preenchido": 50.0, "marca": 50.0})
+        self.assertEqual(web._nivel(20, 5)["preenchido"], 100.0)
+        self.assertEqual(web._nivel(0, 0)["classe"], "zero")
+
+    def test_numeros_alinham_a_direita_e_ids_e_codigos_nao(self):
+        saida = web._preparar_resultado([{"id": 1, "codigo": "A-1", "quantidade": 4}])
+
+        classes = [c["classe"] for c in saida["linhas"][0]]
+        self.assertEqual(classes, ["", "codigo", "num"])
+        self.assertEqual([c["numerica"] for c in saida["colunas"]], [False, False, True])
+
+    def test_rotulos_de_colunas_nao_se_repetem_no_historico(self):
+        linha = {"id": 1, "produto_id": 1, "codigo": "A", "produto": "X", "funcionario_id": 1,
+                 "funcionario": "Ana", "fornecedor_id": None, "fornecedor": None}
+
+        rotulos = [c["rotulo"] for c in web._preparar_resultado([linha])["colunas"]]
+
+        self.assertEqual(len(rotulos), len(set(rotulos)))
+
+    def test_data_e_hora_formatada_e_sem_quebra_de_linha(self):
+        celula = web._preparar_resultado([{"data_hora": "2026-11-10 19:58:19"}])["linhas"][0][0]
+
+        self.assertEqual(celula["texto"], "10/11/2026 19:58")
+        self.assertEqual(celula["classe"], "data")
+
+    def test_moeda_e_data_no_formato_brasileiro(self):
+        self.assertEqual(web._moeda(1498.5), "R$ 1.498,50")
+        self.assertEqual(web._moeda(0), "R$ 0,00")
+        self.assertEqual(web._moeda(1234567.891), "R$ 1.234.567,89")
+        self.assertEqual(web._moeda(None), "-")
+        self.assertEqual(web._data_hora("2026-11-10 19:58:19"), "10/11/2026 19:58")
+        self.assertEqual(web._data_hora("não é data"), "não é data")
 
     def test_tupla_de_valores_e_uma_unica_linha(self):
         saida = web._preparar_resultado((1, "a"))
