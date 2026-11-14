@@ -25,6 +25,7 @@ import os
 import re
 import secrets
 import time
+from datetime import datetime
 
 from flask import (
     Flask,
@@ -108,6 +109,20 @@ def _menus_visiveis(perfil):
     return grupos
 
 
+ATALHOS = ("Registrar entrada", "Registrar saída", "Cadastrar produto")
+
+
+def _atalhos(perfil):
+    """Ações mais usadas que o perfil pode executar: [(rotulo, gi, ii)]."""
+    encontrados = []
+    for rotulo in ATALHOS:
+        for gi, _, itens in _menus_visiveis(perfil):
+            for ii, item in itens:
+                if item.rotulo == rotulo:
+                    encontrados.append((rotulo, gi, ii))
+    return encontrados
+
+
 def _localizar(gi, ii):
     try:
         titulo, itens = main.MENUS[gi]
@@ -165,12 +180,98 @@ def _ler_formulario(item, campos, formulario):
     return valores, erros
 
 
+ROTULOS_DE_COLUNA = {
+    "codigo": "Código", "descricao": "Descrição", "preco": "Preço",
+    "situacao": "Situação", "funcionario": "Funcionário", "data_hora": "Data e hora",
+    "estoque_atual": "Estoque", "estoque_minimo": "Mínimo", "valor_total": "Valor total",
+    "quantidade": "Qtd.", "observacao": "Observação", "acao": "Ação",
+    "id": "ID", "categoria_id": "ID categoria", "produto_id": "ID produto",
+    "fornecedor_id": "ID fornecedor", "funcionario_id": "ID funcionário",
+    "entidade_id": "ID registro",
+}
+COLUNAS_DE_DINHEIRO = ("preco", "valor")
+SELOS_DE_SITUACAO = {"OK": "ok", "BAIXO": "baixo", "SEM ESTOQUE": "zero"}
+SELOS_DE_TIPO = {"ENTRADA": "entrada", "SAIDA": "saida"}
+
+
+def _moeda(valor):
+    """1498.5 -> 'R$ 1.498,50' (formato brasileiro)."""
+    try:
+        texto = f"{float(valor):,.2f}"
+    except (TypeError, ValueError):
+        return "-"
+    return "R$ " + texto.replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def _data_hora(valor):
+    """'2026-11-10 19:58:19' -> '10/11/2026 19:58' (devolve o original se não der)."""
+    try:
+        return datetime.fromisoformat(str(valor)).strftime("%d/%m/%Y %H:%M")
+    except ValueError:
+        return str(valor)
+
+
+def _nivel(atual, minimo):
+    """Dados do medidor de estoque: classe, % preenchido e % da marca do mínimo.
+
+    A escala vai até o dobro do mínimo (ou o saldo, se maior), então o
+    produto exatamente no mínimo fica com o preenchimento na marca.
+    """
+    escala = max(minimo * 2, atual, 1)
+    if atual == 0:
+        classe = "zero"
+    elif atual < minimo:
+        classe = "baixo"
+    else:
+        classe = "ok"
+    return {
+        "classe": classe,
+        "preenchido": round(atual / escala * 100, 1),
+        "marca": round(minimo / escala * 100, 1),
+    }
+
+
+def _e_numerica(coluna, valor):
+    """Números de verdade (quantidades, valores) alinham à direita; ids e códigos não."""
+    return (isinstance(valor, (int, float)) and not isinstance(valor, bool)
+            and coluna not in ("id", "codigo") and not coluna.endswith("_id"))
+
+
 def _formatar(valor):
     if valor is None:
         return "-"
     if isinstance(valor, float):
         return f"{valor:.2f}".replace(".", ",")
     return str(valor)
+
+
+def _celula(coluna, valor, linha):
+    """Uma célula da tabela: texto, classes e, se couber, selo ou medidor."""
+    celula = {"texto": _formatar(valor), "classes": [], "selo": None, "nivel": None}
+    if coluna.startswith(COLUNAS_DE_DINHEIRO) and isinstance(valor, (int, float)):
+        celula["texto"] = _moeda(valor)
+    elif coluna == "data_hora" and valor is not None:
+        celula["texto"] = _data_hora(valor)
+        celula["classes"].append("data")
+    elif coluna == "situacao" and valor in SELOS_DE_SITUACAO:
+        celula["selo"] = SELOS_DE_SITUACAO[valor]
+        celula["texto"] = {"OK": "Em dia", "BAIXO": "Baixo", "SEM ESTOQUE": "Sem estoque"}[valor]
+    elif coluna == "tipo" and valor in SELOS_DE_TIPO:
+        celula["selo"] = SELOS_DE_TIPO[valor]
+        celula["texto"] = "Entrada" if valor == "ENTRADA" else "Saída"
+    elif coluna == "ativo" and isinstance(valor, (bool, int)):
+        celula["selo"] = "ok" if valor else "inativo"
+        celula["texto"] = "Ativo" if valor else "Inativo"
+    elif (coluna == "estoque_atual" and isinstance(valor, int)
+          and isinstance(linha.get("estoque_minimo"), int)):
+        celula["nivel"] = _nivel(valor, linha["estoque_minimo"])
+
+    if _e_numerica(coluna, valor):
+        celula["classes"].append("num")
+    if coluna == "codigo":
+        celula["classes"].append("codigo")
+    celula["classe"] = " ".join(celula["classes"])
+    return celula
 
 
 def _preparar_resultado(resultado):
@@ -186,7 +287,7 @@ def _preparar_resultado(resultado):
         return {"tipo": "texto", "texto": resultado}
     if isinstance(resultado, (list, tuple)):
         if not resultado:
-            return {"tipo": "texto", "texto": "Nenhum registro encontrado."}
+            return {"tipo": "vazio", "texto": "Nenhum registro encontrado."}
         if isinstance(resultado[0], (str, int, float, type(None))):
             resultado = [resultado]                     # uma única linha (tupla)
         linhas = [main._como_dict(linha) for linha in resultado]
@@ -197,13 +298,29 @@ def _preparar_resultado(resultado):
                     colunas.append(coluna)
         return {
             "tipo": "tabela",
-            "colunas": [c.replace("_", " ").capitalize() for c in colunas],
-            "linhas": [[_formatar(linha.get(c)) for c in colunas] for linha in linhas],
+            "colunas": [
+                {"rotulo": ROTULOS_DE_COLUNA.get(c, c.replace("_", " ").capitalize()),
+                 "numerica": any(_e_numerica(c, linha.get(c)) for linha in linhas)}
+                for c in colunas
+            ],
+            "linhas": [[_celula(c, linha.get(c), linha) for c in colunas] for linha in linhas],
             "total": len(linhas),
         }
-    pares = [(str(k).replace("_", " ").capitalize(), _formatar(v))
+    pares = [(ROTULOS_DE_COLUNA.get(str(k), str(k).replace("_", " ").capitalize()),
+              _formatar(v))
              for k, v in main._como_dict(resultado).items()]
     return {"tipo": "detalhes", "pares": pares}
+
+
+def _produtos_para_repor(conexao, limite=8):
+    """Produtos sem estoque ou abaixo do mínimo, os zerados primeiro."""
+    itens = [
+        {**item, "nivel": _nivel(item["estoque_atual"], item["estoque_minimo"])}
+        for item in relatorios.relatorio_estoque(conexao=conexao)
+        if item["situacao"] != "OK"
+    ]
+    itens.sort(key=lambda i: (i["estoque_atual"] > 0, i["estoque_atual"] - i["estoque_minimo"]))
+    return itens[:limite], len(itens)
 
 
 def _mensagem_sucesso(resultado):
@@ -247,6 +364,7 @@ def criar_app(caminho_banco=None, config=None):
         return session["csrf"]
 
     app.jinja_env.globals["csrf_token"] = token_csrf
+    app.jinja_env.filters["moeda"] = _moeda
 
     @app.context_processor
     def contexto():
@@ -395,8 +513,15 @@ def criar_app(caminho_banco=None, config=None):
 
     @app.get("/")
     def inicio():
-        indicadores = relatorios.indicadores_gerais(conexao=_conexao())
-        return render_template("inicio.html", indicadores=indicadores)
+        conexao = _conexao()
+        repor, total_repor = _produtos_para_repor(conexao)
+        return render_template(
+            "inicio.html",
+            indicadores=relatorios.indicadores_gerais(conexao=conexao),
+            repor=repor,
+            total_repor=total_repor,
+            atalhos=_atalhos(g.usuario["perfil"]),
+        )
 
     @app.route("/m/<int:gi>/<int:ii>", methods=["GET", "POST"])
     def operacao(gi, ii):

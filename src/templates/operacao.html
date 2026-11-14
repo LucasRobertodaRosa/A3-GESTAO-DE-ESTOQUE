@@ -1,8 +1,13 @@
 {% extends "base.html" %}
-{% block titulo %}{{ item.rotulo }} — Gestão de Estoque{% endblock %}
+{% from "_nivel.html" import medidor %}
+{% block titulo %}{{ item.rotulo }} — Estoque{% endblock %}
 {% block conteudo %}
-<p class="trilha">{{ grupo }}</p>
-<h1>{{ item.rotulo }}</h1>
+<header class="pagina-topo">
+  <div>
+    <p class="trilha">{{ grupo }}</p>
+    <h1>{{ item.rotulo }}</h1>
+  </div>
+</header>
 
 {% if erro %}<p class="aviso erro" role="alert">{{ erro }}</p>{% endif %}
 
@@ -11,11 +16,12 @@
       {% if item.rotulo.startswith('Desativar') %}data-confirmar="Confirma a desativação?"{% endif %}>
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   {% for campo in campos %}
-  <label>{{ campo.rotulo }}{% if campo.opcional %} <small>(opcional)</small>{% endif %}
+  <label>
+    <span class="rotulo">{{ campo.rotulo }}{% if campo.opcional %} <small>opcional</small>{% endif %}</span>
     {% if campo.tipo == 'perfil' %}
     <select name="{{ campo.nome }}" required>
       {% for p in ('ADMIN', 'ESTOQUISTA', 'CONSULTA') %}
-      <option value="{{ p }}" {% if valores.get(campo.nome) == p %}selected{% endif %}>{{ p }}</option>
+      <option value="{{ p }}" {% if valores.get(campo.nome) == p %}selected{% endif %}>{{ p|capitalize }}</option>
       {% endfor %}
     </select>
     {% elif campo.tipo == 'senha' %}
@@ -32,7 +38,7 @@
     {% if erros.get(campo.nome) %}<span class="erro-campo">{{ erros[campo.nome] }}</span>{% endif %}
   </label>
   {% endfor %}
-  <button class="botao" type="submit">{{ 'Consultar' if not item.auditoria else 'Confirmar' }}</button>
+  <button class="botao" type="submit">{{ 'Consultar' if not item.auditoria else 'Salvar' }}</button>
 </form>
 {% endif %}
 
@@ -41,19 +47,30 @@
   {% if resultado.tipo == 'tabela' %}
   <div class="tabela-rolavel">
     <table>
-      <thead><tr>{% for c in resultado.colunas %}<th>{{ c }}</th>{% endfor %}</tr></thead>
+      <thead><tr>{% for c in resultado.colunas %}<th scope="col"{% if c.numerica %} class="num"{% endif %}>{{ c.rotulo }}</th>{% endfor %}</tr></thead>
       <tbody>
         {% for linha in resultado.linhas %}
-        <tr>{% for v in linha %}<td>{{ v }}</td>{% endfor %}</tr>
+        <tr>
+          {% for cel in linha %}
+          <td{% if cel.classe %} class="{{ cel.classe }}"{% endif %}>
+            {% if cel.nivel %}
+            <span class="com-medidor"><span class="valor">{{ cel.texto }}</span>{{ medidor(cel.nivel, 'Nível do estoque: ' ~ cel.texto) }}</span>
+            {% elif cel.selo %}<span class="selo {{ cel.selo }}">{{ cel.texto }}</span>
+            {% else %}{{ cel.texto }}{% endif %}
+          </td>
+          {% endfor %}
+        </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
-  <p class="total">{{ resultado.total }} registro(s).</p>
+  <p class="total">{{ resultado.total }} registro{{ 's' if resultado.total != 1 }}</p>
   {% elif resultado.tipo == 'detalhes' %}
-  <dl>
+  <dl class="detalhes">
     {% for chave, valor in resultado.pares %}<dt>{{ chave }}</dt><dd>{{ valor }}</dd>{% endfor %}
   </dl>
+  {% elif resultado.tipo == 'vazio' %}
+  <p class="vazio">{{ resultado.texto }}</p>
   {% else %}
   <p>{{ resultado.texto }}</p>
   {% endif %}
