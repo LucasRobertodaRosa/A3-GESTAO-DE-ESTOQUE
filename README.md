@@ -26,6 +26,9 @@ A3-GESTAO-DE-ESTOQUE/
 │   ├── autenticacao.py
 │   ├── relatorios.py
 │   ├── auditoria.py
+│   ├── web.py
+│   ├── templates/
+│   └── static/
 ├── tests/
 │   └── test_*.py
 ├── data/
@@ -81,6 +84,14 @@ Execute na raiz do projeto:
 ```bash
 python -m src.main
 ```
+
+### Interface web (Flask)
+
+```bash
+python -m src.web
+```
+
+Abra <http://127.0.0.1:5000>. O site usa os mesmos módulos, campos e permissões do menu de terminal (as telas são geradas a partir da tabela `MENUS` de `src/main.py`). Em ambiente real, defina a variável `SECRET_KEY` antes de iniciar; veja `docs/integracao-frontend.md`.
 
 O arquivo `src/banco.py` utiliza SQLite e pode criar `estoque.db` automaticamente na raiz do projeto. Esse banco local não é versionado.
 

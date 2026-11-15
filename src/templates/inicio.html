@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "_nivel.html" import medidor %}
+{% block conteudo %}
+<header class="pagina-topo">
+  <h1>Painel</h1>
+  {% if atalhos %}
+  <div class="atalhos">
+    {% for rotulo, gi, ii in atalhos %}
+    <a class="botao {{ 'secundario' if not loop.first }}" href="{{ url_for('operacao', gi=gi, ii=ii) }}">{{ rotulo }}</a>
+    {% endfor %}
+  </div>
+  {% endif %}
+</header>
+
+<dl class="resumo" aria-label="Indicadores gerais">
+  <div><dt>Produtos ativos</dt><dd>{{ indicadores.total_produtos }}</dd></div>
+  <div><dt>Unidades em estoque</dt><dd>{{ indicadores.unidades_em_estoque }}</dd></div>
+  <div><dt>Valor do estoque</dt><dd>{{ indicadores.valor_total_estoque|moeda }}</dd></div>
+  <div><dt>Entradas e saídas</dt><dd>{{ indicadores.total_entradas }} <span class="separador">/</span> {{ indicadores.total_saidas }}</dd></div>
+</dl>
+
+<section aria-labelledby="titulo-repor" class="repor">
+  <h2 id="titulo-repor">Para repor{% if total_repor %} <span class="contagem">{{ total_repor }}</span>{% endif %}</h2>
+  {% if repor %}
+  <ul class="lista-repor">
+    {% for p in repor %}
+    {% set texto = 'Sem estoque' if p.nivel.classe == 'zero' else p.estoque_atual ~ ' de ' ~ p.estoque_minimo ~ ' no mínimo' %}
+    <li>
+      <div class="repor-nome"><strong>{{ p.nome }}</strong><span class="codigo">{{ p.codigo }}</span></div>
+      {{ medidor(p.nivel, p.nome ~ ': ' ~ texto) }}
+      <span class="selo {{ p.nivel.classe }}">{{ texto }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% if total_repor > repor|length %}<p class="dica">Mostrando {{ repor|length }} de {{ total_repor }}. A lista completa está em Relatórios e consultas.</p>{% endif %}
+  {% else %}
+  <p class="vazio">Nenhum produto abaixo do estoque mínimo.</p>
+  {% endif %}
+</section>
+{% endblock %}
