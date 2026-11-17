@@ -117,6 +117,41 @@ python -m ruff check .
 
 Caches como `__pycache__/`, arquivos `.pyc`, `.pytest_cache/`, relatórios `.coverage` e bancos locais são descartáveis e ficam fora do versionamento.
 
+
+## Testes e qualidade do backend
+
+Instale as dependências:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+Execute os testes:
+
+```bash
+python -m pytest tests/ -v
+```
+
+Verifique a cobertura:
+
+```bash
+python -m coverage run --source=src -m pytest tests/
+python -m coverage report -m --fail-under=75
+```
+
+Execute a análise estática:
+
+```bash
+python -m ruff check .
+```
+
+A validação automática é executada pelo workflow
+`.github/workflows/backend-ci.yml` nos Pull Requests
+e atualizações das branches `develop` e `main`.
+
+As evidências da entrega estão em `docs/EVIDENCIAS_A3.md`.
+
+
 ## Funcionalidades previstas
 
 - Cadastro, edição, consulta e desativação de produtos e categorias.
