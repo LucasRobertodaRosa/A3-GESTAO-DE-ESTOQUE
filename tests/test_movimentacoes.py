@@ -146,11 +146,26 @@ def test_saldo_final_apos_entrada_e_saida(conexao):
     assert movimentos_gravados(conexao) == 2
 
 
-def test_fornecedor_inexistente_desfaz_entrada(conexao):
-    with pytest.raises(sqlite3.IntegrityError):
-        registrar_entrada(1, 5, fornecedor_id=999, conexao=conexao)
+def test_fornecedor_inativo_impede_entrada(conexao):
+    conexao.execute(
+        "UPDATE fornecedores SET ativo = 0 WHERE id = 1"
+    )
+    conexao.commit()
+
+    with pytest.raises(
+        ValueError,
+        match="Fornecedor 1 está inativo"
+    ):
+        registrar_entrada(
+            1,
+            5,
+            fornecedor_id=1,
+            conexao=conexao,
+        )
+
     assert saldo(conexao) == 10
     assert movimentos_gravados(conexao) == 0
+
 
 
 def test_funcionario_inexistente_desfaz_saida(conexao):

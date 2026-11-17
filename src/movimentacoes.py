@@ -35,6 +35,33 @@ def _verificar_produto(conn, produto_id):
         raise ValueError("Produto inativo.")
     return produto["estoque_atual"]
 
+def _verificar_fornecedor(conn, fornecedor_id):
+    """
+    Valida o fornecedor informado antes de
+    registrar uma entrada de estoque.
+    """
+
+    if fornecedor_id is None:
+        return
+
+    fornecedor = conn.execute(
+        """
+        SELECT ativo
+        FROM fornecedores
+        WHERE id = ?
+        """,
+        (fornecedor_id,),
+    ).fetchone()
+
+    if fornecedor is None:
+        raise ValueError(
+            f"Fornecedor {fornecedor_id} não encontrado."
+        )
+
+    if not fornecedor["ativo"]:
+        raise ValueError(
+            f"Fornecedor {fornecedor_id} está inativo."
+        )
 
 def registrar_entrada(
     produto_id,
@@ -43,6 +70,7 @@ def registrar_entrada(
     funcionario_id=None,
     conexao=None,
 ):
+    
     """Aumenta estoque e registra a entrada em uma única transação.
 
     fornecedor_id e funcionario_id são opcionais e precisam existir no banco
@@ -53,6 +81,7 @@ def registrar_entrada(
     try:
         with conn:
             _verificar_produto(conn, produto_id)
+            _verificar_fornecedor(conn, fornecedor_id)
             conn.execute(
                 "UPDATE produtos SET estoque_atual = estoque_atual + ? WHERE id = ?",
                 (quantidade, produto_id),
