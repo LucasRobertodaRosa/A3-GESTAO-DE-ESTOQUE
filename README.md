@@ -95,7 +95,22 @@ Abra <http://127.0.0.1:5000>. O site usa os mesmos módulos, campos e permissõe
 
 O arquivo `src/banco.py` utiliza SQLite e pode criar `estoque.db` automaticamente na raiz do projeto. Esse banco local não é versionado.
 
-**Atenção:** a execução integral do menu depende da conclusão e compatibilidade dos módulos de autenticação e funcionários. Caso ainda estejam em desenvolvimento, a inicialização/login pode falhar até a integração final.
+
+## Observações de execução
+
+O sistema oferece interface de terminal e interface web Flask.
+
+A aplicação utiliza o mesmo banco SQLite para persistir
+os dados, respeitando as regras de negócio e as permissões
+implementadas no backend.
+
+Para executar os testes, recomenda-se utilizar um ambiente
+isolado e um banco de teste, sem alterar os dados da aplicação.
+
+Para acesso web em ambientes diferentes do uso local,
+é necessário configurar uma SECRET_KEY segura e revisar
+as condições de implantação e segurança do servidor.
+
 
 ## Testes
 
@@ -127,6 +142,48 @@ python -m ruff check .
 ```
 
 Caches como `__pycache__/`, arquivos `.pyc`, `.pytest_cache/`, relatórios `.coverage` e bancos locais são descartáveis e ficam fora do versionamento.
+
+
+## Qualidade e integração contínua
+
+O projeto utiliza:
+
+- Pytest para testes automatizados.
+- Coverage.py para medição de cobertura.
+- Ruff para análise estática.
+- GitHub Actions para integração contínua.
+
+A cobertura mínima exigida no projeto é de 75%.
+
+### Executar os testes
+
+```bash
+python -m pytest tests/ -v
+```
+
+### Medir a cobertura
+
+```bash
+python -m coverage run --source=src -m pytest tests/
+python -m coverage report -m --fail-under=75
+```
+
+### Executar o Ruff
+
+```bash
+python -m ruff check .
+```
+
+O workflow de integração contínua está em
+`.github/workflows/backend-ci.yml`.
+
+As informações de homologação estão em
+`docs/EVIDENCIAS_A3.md`.
+
+## Licença
+
+O projeto está disponibilizado sob os termos descritos
+no arquivo LICENSE.
 
 
 ## Testes e qualidade do backend
@@ -163,13 +220,49 @@ e atualizações das branches `develop` e `main`.
 As evidências da entrega estão em `docs/EVIDENCIAS_A3.md`.
 
 
-## Funcionalidades previstas
 
-- Cadastro, edição, consulta e desativação de produtos e categorias.
-- Registro de entrada e saída com atualização de `estoque_atual` e bloqueio de saldo negativo.
-- Histórico de movimentações e relatórios de estoque.
-- Gerenciamento de fornecedores.
-- Gestão de funcionários, autenticação por perfil e auditoria, sujeitos à integração final.
+## Funcionalidades implementadas
+
+O Sistema de Gestão de Estoque foi desenvolvido em Python,
+com banco de dados SQLite e interface web Flask.
+
+### Produtos e categorias
+- Cadastro e consulta de categorias.
+- Cadastro, edição, busca e desativação de produtos.
+- Validação de código, preço e estoque mínimo.
+
+### Movimentações de estoque
+- Registro de entradas de produtos.
+- Registro de saídas de produtos.
+- Atualização automática do estoque disponível.
+- Bloqueio de saída com saldo insuficiente.
+- Histórico de movimentações.
+
+### Fornecedores
+- Cadastro e consulta de fornecedores.
+- Associação de fornecedores às entradas de estoque.
+
+### Funcionários e autenticação
+- Cadastro e gerenciamento de funcionários.
+- Autenticação de usuários com bcrypt.
+- Controle de acesso por perfil.
+- Perfis ADMIN, ESTOQUISTA e CONSULTA.
+
+### Relatórios
+- Relatório de estoque atual.
+- Identificação de produtos com estoque baixo ou zerado.
+- Histórico de entradas e saídas.
+- Indicadores gerais do estoque.
+
+### Auditoria
+- Registro de operações relevantes do sistema.
+- Identificação de ações realizadas pelos funcionários.
+
+### Interface
+- Menu de terminal em Python.
+- Interface web desenvolvida com Flask.
+- Formulários e tabelas para gerenciamento do estoque.
+
 
 ## Publicação sem arquivos de teste
 
