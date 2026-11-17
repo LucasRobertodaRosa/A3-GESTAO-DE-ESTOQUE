@@ -238,7 +238,7 @@ def _imprimir_tabela(linhas):
                 colunas.append(coluna)
     celulas = [[_texto(linha.get(c)) for c in colunas] for linha in dados]
     larguras = [
-        min(40, max([len(str(c))] + [len(l[i]) for l in celulas]))
+        min(40, max([len(str(c))] + [len(celula[i]) for celula in celulas]))
         for i, c in enumerate(colunas)
     ]
     cabecalho = " | ".join(str(c).upper().ljust(w) for c, w in zip(colunas, larguras))

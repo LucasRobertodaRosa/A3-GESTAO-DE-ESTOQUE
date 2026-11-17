@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block titulo %}Erro {{ codigo }} — Estoque{% endblock %}
+{% block conteudo %}
+<h1>{{ mensagem }}</h1>
+<p class="dica">Código {{ codigo }}.</p>
+<p><a class="botao secundario" href="{{ url_for('inicio') }}">Voltar ao painel</a></p>
+{% endblock %}
