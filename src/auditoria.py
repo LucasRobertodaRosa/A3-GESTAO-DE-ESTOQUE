@@ -46,6 +46,7 @@ ENTRADA = "ENTRADA"
 SAIDA = "SAIDA"
 REATIVACAO = "REATIVACAO"
 SENHA = "SENHA"
+AJUSTE = "AJUSTE"
 
 
 # --------------------------------------------------------------------------

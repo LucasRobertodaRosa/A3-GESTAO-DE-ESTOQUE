@@ -13,7 +13,8 @@
 
 {% if campos or item.auditoria %}
 <form method="post" class="formulario"
-      {% if item.rotulo.startswith('Desativar') %}data-confirmar="Confirma a desativação?"{% endif %}>
+      {% if item.rotulo.startswith('Desativar') %}data-confirmar="Confirma a desativação?"
+      {% elif item.rotulo.startswith('Ajustar') %}data-confirmar="O saldo do sistema será substituído pela contagem. Confirma?"{% endif %}>
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   {% for campo in campos %}
   <label>
