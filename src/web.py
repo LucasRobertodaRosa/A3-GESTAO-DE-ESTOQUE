@@ -324,6 +324,12 @@ def _produtos_para_repor(conexao, limite=8):
 
 
 def _mensagem_sucesso(resultado):
+    if isinstance(resultado, dict) and "diferenca" in resultado:
+        d = resultado["diferenca"]
+        if d == 0:
+            return "A contagem confere com o sistema: nenhum ajuste necessário."
+        return (f"Estoque ajustado de {resultado['saldo_anterior']} para "
+                f"{resultado['saldo_novo']} ({d:+d}).")
     if isinstance(resultado, int) and not isinstance(resultado, bool):
         return f"Operação concluída. ID: {resultado}"
     if isinstance(resultado, dict) and "id" in resultado:

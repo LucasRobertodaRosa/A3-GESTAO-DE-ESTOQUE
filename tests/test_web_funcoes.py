@@ -65,6 +65,18 @@ class TestFuncoesWeb(BaseWeb):
                               confirmacao="hackeada1")
         self.assertEqual(resposta.status_code, 403)
 
+    # ---------- ajuste ----------
+
+    def test_ajuste_de_inventario_pelo_site(self):
+        resposta = self._post(_url_da_opcao("Ajustar estoque (contagem física)"),
+                              produto_id=str(self.pid), quantidade_contada="8",
+                              motivo="contagem anual")
+        self.assertEqual(resposta.status_code, 302)
+        self.assertEqual(produtos.buscar_produto(self.pid)["estoque_atual"], 8)
+        self.assertIn("AJUSTE", self._acoes_de_auditoria())
+        pagina = self._html(self.cliente.get(resposta.headers["Location"]))
+        self.assertIn("Estoque ajustado de 10 para 8", pagina)
+
 
 if __name__ == "__main__":
     unittest.main()
