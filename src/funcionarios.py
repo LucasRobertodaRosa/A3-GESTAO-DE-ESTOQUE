@@ -187,3 +187,16 @@ def desativar_funcionario(funcionario_id, conexao=None):
                 "UPDATE funcionarios SET ativo = 0 WHERE id = ?", (funcionario_id,)
             )
         return _buscar(con, funcionario_id)
+
+
+def reativar_funcionario(funcionario_id, conexao=None):
+    """Reativa um funcionário desativado (ele volta a conseguir entrar) e o devolve."""
+    with _conexao_em_uso(conexao) as con:
+        atual = _exigir_existente(con, funcionario_id)
+        if atual["ativo"]:
+            raise ValueError(f"O funcionário {funcionario_id} já está ativo.")
+        with con:
+            con.execute(
+                "UPDATE funcionarios SET ativo = 1 WHERE id = ?", (funcionario_id,)
+            )
+        return _buscar(con, funcionario_id)

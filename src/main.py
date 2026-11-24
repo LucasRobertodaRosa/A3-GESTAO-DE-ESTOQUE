@@ -473,6 +473,8 @@ MENUS = [
              ESCRITA, (auditoria.EDICAO, "produto")),
         Item("Desativar produto", "produtos", "desativar_produto", (_ID,),
              ESCRITA, (auditoria.DESATIVACAO, "produto")),
+        Item("Reativar produto", "produtos", "reativar_produto", (_ID,),
+             ESCRITA, (auditoria.REATIVACAO, "produto")),
     ]),
     ("Entradas e saídas", [
         Item("Registrar entrada", "movimentacoes", "registrar_entrada",
@@ -510,6 +512,8 @@ MENUS = [
              ESCRITA, (auditoria.EDICAO, "fornecedor")),
         Item("Desativar fornecedor", "fornecedores", "desativar_fornecedor",
              (_ID,), ESCRITA, (auditoria.DESATIVACAO, "fornecedor")),
+        Item("Reativar fornecedor", "fornecedores", "reativar_fornecedor",
+             (_ID,), ESCRITA, (auditoria.REATIVACAO, "fornecedor")),
     ]),
     ("Relatórios e consultas", [
         Item("Estoque atual", "relatorios", "relatorio_estoque"),
@@ -538,6 +542,8 @@ MENUS = [
              SOMENTE_ADMIN, (auditoria.EDICAO, "funcionario")),
         Item("Desativar funcionário", "funcionarios", "desativar_funcionario",
              (_ID,), SOMENTE_ADMIN, (auditoria.DESATIVACAO, "funcionario")),
+        Item("Reativar funcionário", "funcionarios", "reativar_funcionario",
+             (_ID,), SOMENTE_ADMIN, (auditoria.REATIVACAO, "funcionario")),
     ]),
     ("Auditoria", [
         Item("Consultar eventos (Enter ignora o filtro)", "auditoria",
