@@ -19,7 +19,18 @@
   {% for campo in campos %}
   <label>
     <span class="rotulo">{{ campo.rotulo }}{% if campo.opcional %} <small>opcional</small>{% endif %}</span>
-    {% if campo.tipo == 'perfil' %}
+    {% if campo.opcoes is not none and campo.opcoes is defined %}
+    <select name="{{ campo.nome }}" {% if not campo.opcional %}required{% endif %}>
+      <option value="">{% if campo.opcoes %}{{ 'Qualquer' if campo.opcional else 'Escolha…' }}{% else %}Nenhum cadastro disponível{% endif %}</option>
+      {% for valor, texto in campo.opcoes %}
+      <option value="{{ valor }}" {% if valores.get(campo.nome)|string == valor|string %}selected{% endif %}>{{ texto }}</option>
+      {% endfor %}
+      {% set atual = valores.get(campo.nome) %}
+      {% if atual and atual|string not in campo.opcoes|map(attribute=0)|map('string')|list %}
+      <option value="{{ atual }}" selected>ID {{ atual }} (não encontrado)</option>
+      {% endif %}
+    </select>
+    {% elif campo.tipo == 'perfil' %}
     <select name="{{ campo.nome }}" required>
       {% for p in ('ADMIN', 'ESTOQUISTA', 'CONSULTA') %}
       <option value="{{ p }}" {% if valores.get(campo.nome) == p %}selected{% endif %}>{{ p|capitalize }}</option>

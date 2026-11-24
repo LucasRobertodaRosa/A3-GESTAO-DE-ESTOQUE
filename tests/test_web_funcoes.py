@@ -1,8 +1,8 @@
-"""Testes web das funções essenciais (reativação, senha, ajuste)."""
+"""Testes web das funções essenciais (reativação, senha, ajuste, listas de escolha)."""
 
 import unittest
 
-from src import categorias, movimentacoes, produtos
+from src import categorias, fornecedores, movimentacoes, produtos
 from tests.test_web import BaseWeb, SENHA, _url_da_opcao
 
 
@@ -76,6 +76,37 @@ class TestFuncoesWeb(BaseWeb):
         self.assertIn("AJUSTE", self._acoes_de_auditoria())
         pagina = self._html(self.cliente.get(resposta.headers["Location"]))
         self.assertIn("Estoque ajustado de 10 para 8", pagina)
+
+    # ---------- listas de escolha ----------
+
+    def test_campo_de_produto_vira_lista(self):
+        html = self._html(self.cliente.get(_url_da_opcao("Registrar saída")))
+        self.assertIn('<select name="produto_id"', html)
+        self.assertIn("CAN-1 — Caneta azul (estoque 10)", html)
+
+    def test_desativar_lista_so_ativos_e_reativar_so_inativos(self):
+        desativar = self._html(self.cliente.get(_url_da_opcao("Desativar produto")))
+        reativar = self._html(self.cliente.get(_url_da_opcao("Reativar produto")))
+        self.assertIn("Caneta azul", desativar)
+        self.assertNotIn("Caneta azul", reativar)
+        produtos.desativar_produto(self.pid)
+        desativar = self._html(self.cliente.get(_url_da_opcao("Desativar produto")))
+        reativar = self._html(self.cliente.get(_url_da_opcao("Reativar produto")))
+        self.assertNotIn("Caneta azul", desativar)
+        self.assertIn("Caneta azul", reativar)
+
+    def test_lista_de_categoria_e_fornecedor(self):
+        fornecedores.cadastrar_fornecedor("Alfa Ltda", None, None, None)
+        html = self._html(self.cliente.get(_url_da_opcao("Registrar entrada")))
+        self.assertIn("Alfa Ltda", html)
+        html = self._html(self.cliente.get(_url_da_opcao("Cadastrar produto")))
+        self.assertIn("Papelaria", html)
+
+    def test_escolher_na_lista_funciona_de_ponta_a_ponta(self):
+        resposta = self._post(_url_da_opcao("Registrar saída"),
+                              produto_id=str(self.pid), quantidade="4")
+        self.assertEqual(resposta.status_code, 302)
+        self.assertEqual(produtos.buscar_produto(self.pid)["estoque_atual"], 6)
 
 
 if __name__ == "__main__":

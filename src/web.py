@@ -155,6 +155,79 @@ def _campos_visiveis(item):
     return campos
 
 
+# --------------------------------------------------------------------------
+# Listas de escolha (em vez de digitar IDs)
+# --------------------------------------------------------------------------
+
+def _tabela_do_campo(item, nome):
+    """Qual cadastro alimenta o campo (None se o campo não é um ID)."""
+    if nome == "id":
+        return {"produtos": "produtos", "fornecedores": "fornecedores",
+                "funcionarios": "funcionarios", "categorias": "categorias"}.get(item.modulo)
+    return {"produto_id": "produtos", "categoria_id": "categorias",
+            "fornecedor_id": "fornecedores", "funcionario_id": "funcionarios"}.get(nome)
+
+
+_NOME_NO_SINGULAR = {"produtos": "Produto", "fornecedores": "Fornecedor",
+                     "funcionarios": "Funcionário", "categorias": "Categoria"}
+
+
+def _rotulo_da_lista(item, campo):
+    """'ID do produto' -> 'Produto' (o usuário escolhe na lista, não digita o ID)."""
+    if campo["nome"] == "id":
+        return _NOME_NO_SINGULAR[_tabela_do_campo(item, "id")]
+    rotulo = re.sub(r"\s*\(ID\)", "", campo["rotulo"])
+    rotulo = re.sub(r"^ID d[oa] ", "", rotulo)
+    return rotulo[:1].upper() + rotulo[1:]
+
+
+def _filtro_de_situacao(item):
+    """'ativo', 'inativo' ou None (todos), conforme o que a ação aceita."""
+    if item.funcao.startswith("reativar"):
+        return "inativo"
+    if item.funcao.startswith(("desativar", "registrar_")):
+        return "ativo"
+    return None
+
+
+_CONSULTAS_DE_OPCOES = {
+    "produtos": ("SELECT id, codigo, nome, estoque_atual, ativo FROM produtos "
+                 "ORDER BY nome COLLATE NOCASE"),
+    "fornecedores": "SELECT id, nome, cnpj, ativo FROM fornecedores ORDER BY nome COLLATE NOCASE",
+    "funcionarios": ("SELECT id, nome, login, perfil, ativo FROM funcionarios "
+                     "ORDER BY nome COLLATE NOCASE"),
+    "categorias": "SELECT id, nome FROM categorias ORDER BY nome COLLATE NOCASE",
+}
+
+
+def _rotulo_da_opcao(tabela, linha):
+    if tabela == "produtos":
+        return f"{linha['codigo']} — {linha['nome']} (estoque {linha['estoque_atual']})"
+    if tabela == "fornecedores":
+        return linha["nome"] + (f" ({linha['cnpj']})" if linha["cnpj"] else "")
+    if tabela == "funcionarios":
+        return f"{linha['nome']} ({linha['login']}, {linha['perfil'].lower()})"
+    return linha["nome"]
+
+
+def _opcoes(conexao, item, nome):
+    """Lista [(id, texto)] para o campo, ou None se ele deve ser um campo livre."""
+    tabela = _tabela_do_campo(item, nome)
+    if tabela is None:
+        return None
+    situacao = _filtro_de_situacao(item)
+    opcoes = []
+    for linha in conexao.execute(_CONSULTAS_DE_OPCOES[tabela]).fetchall():
+        ativo = linha["ativo"] if "ativo" in linha.keys() else 1
+        if (situacao == "ativo" and not ativo) or (situacao == "inativo" and ativo):
+            continue
+        texto = _rotulo_da_opcao(tabela, linha)
+        if not ativo and situacao is None:
+            texto += " — inativo"
+        opcoes.append((linha["id"], texto))
+    return opcoes
+
+
 def _ler_formulario(item, campos, formulario):
     """Converte o que foi digitado. Devolve (valores, erros_por_campo)."""
     erros = {}
@@ -536,6 +609,11 @@ def criar_app(caminho_banco=None, config=None):
             abort(403)
 
         campos = _campos_visiveis(item)
+        for campo in campos:
+            if campo["tipo"] == "int":
+                campo["opcoes"] = _opcoes(_conexao(), item, campo["nome"])
+                if campo["opcoes"] is not None:
+                    campo["rotulo"] = _rotulo_da_lista(item, campo)
         contexto_base = {"item": item, "grupo": titulo, "campos": campos,
                          "valores": {}, "erros": {}, "resultado": None}
 
