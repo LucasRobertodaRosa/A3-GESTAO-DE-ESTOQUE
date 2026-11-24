@@ -270,3 +270,18 @@ def desativar_produto(produto_id):
             conn.execute("UPDATE produtos SET ativo = 0 WHERE id = ?", (produto_id,))
 
     return buscar_produto(produto_id)
+
+
+def reativar_produto(produto_id):
+    """Reativa um produto desativado e o devolve (desfaz a exclusão lógica)."""
+    atual = buscar_produto(produto_id)
+    if atual is None:
+        raise ValueError(f"Produto {produto_id} não encontrado.")
+    if atual["ativo"]:
+        raise ValueError(f"O produto {produto_id} já está ativo.")
+
+    with _conexao() as conn:
+        with conn:
+            conn.execute("UPDATE produtos SET ativo = 1 WHERE id = ?", (produto_id,))
+
+    return buscar_produto(produto_id)

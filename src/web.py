@@ -20,15 +20,19 @@ Segurança:
 - Cabeçalhos de segurança (CSP restritiva, sem scripts inline).
 """
 
+import csv
 import hmac
+import io
 import os
 import re
 import secrets
 import time
+import unicodedata
 from datetime import datetime
 
 from flask import (
     Flask,
+    Response,
     abort,
     current_app,
     flash,
@@ -155,6 +159,79 @@ def _campos_visiveis(item):
     return campos
 
 
+# --------------------------------------------------------------------------
+# Listas de escolha (em vez de digitar IDs)
+# --------------------------------------------------------------------------
+
+def _tabela_do_campo(item, nome):
+    """Qual cadastro alimenta o campo (None se o campo não é um ID)."""
+    if nome == "id":
+        return {"produtos": "produtos", "fornecedores": "fornecedores",
+                "funcionarios": "funcionarios", "categorias": "categorias"}.get(item.modulo)
+    return {"produto_id": "produtos", "categoria_id": "categorias",
+            "fornecedor_id": "fornecedores", "funcionario_id": "funcionarios"}.get(nome)
+
+
+_NOME_NO_SINGULAR = {"produtos": "Produto", "fornecedores": "Fornecedor",
+                     "funcionarios": "Funcionário", "categorias": "Categoria"}
+
+
+def _rotulo_da_lista(item, campo):
+    """'ID do produto' -> 'Produto' (o usuário escolhe na lista, não digita o ID)."""
+    if campo["nome"] == "id":
+        return _NOME_NO_SINGULAR[_tabela_do_campo(item, "id")]
+    rotulo = re.sub(r"\s*\(ID\)", "", campo["rotulo"])
+    rotulo = re.sub(r"^ID d[oa] ", "", rotulo)
+    return rotulo[:1].upper() + rotulo[1:]
+
+
+def _filtro_de_situacao(item):
+    """'ativo', 'inativo' ou None (todos), conforme o que a ação aceita."""
+    if item.funcao.startswith("reativar"):
+        return "inativo"
+    if item.funcao.startswith(("desativar", "registrar_")):
+        return "ativo"
+    return None
+
+
+_CONSULTAS_DE_OPCOES = {
+    "produtos": ("SELECT id, codigo, nome, estoque_atual, ativo FROM produtos "
+                 "ORDER BY nome COLLATE NOCASE"),
+    "fornecedores": "SELECT id, nome, cnpj, ativo FROM fornecedores ORDER BY nome COLLATE NOCASE",
+    "funcionarios": ("SELECT id, nome, login, perfil, ativo FROM funcionarios "
+                     "ORDER BY nome COLLATE NOCASE"),
+    "categorias": "SELECT id, nome FROM categorias ORDER BY nome COLLATE NOCASE",
+}
+
+
+def _rotulo_da_opcao(tabela, linha):
+    if tabela == "produtos":
+        return f"{linha['codigo']} — {linha['nome']} (estoque {linha['estoque_atual']})"
+    if tabela == "fornecedores":
+        return linha["nome"] + (f" ({linha['cnpj']})" if linha["cnpj"] else "")
+    if tabela == "funcionarios":
+        return f"{linha['nome']} ({linha['login']}, {linha['perfil'].lower()})"
+    return linha["nome"]
+
+
+def _opcoes(conexao, item, nome):
+    """Lista [(id, texto)] para o campo, ou None se ele deve ser um campo livre."""
+    tabela = _tabela_do_campo(item, nome)
+    if tabela is None:
+        return None
+    situacao = _filtro_de_situacao(item)
+    opcoes = []
+    for linha in conexao.execute(_CONSULTAS_DE_OPCOES[tabela]).fetchall():
+        ativo = linha["ativo"] if "ativo" in linha.keys() else 1
+        if (situacao == "ativo" and not ativo) or (situacao == "inativo" and ativo):
+            continue
+        texto = _rotulo_da_opcao(tabela, linha)
+        if not ativo and situacao is None:
+            texto += " — inativo"
+        opcoes.append((linha["id"], texto))
+    return opcoes
+
+
 def _ler_formulario(item, campos, formulario):
     """Converte o que foi digitado. Devolve (valores, erros_por_campo)."""
     erros = {}
@@ -274,6 +351,29 @@ def _celula(coluna, valor, linha):
     return celula
 
 
+def _com_nome_da_categoria(resultado, conexao):
+    """Troca a coluna categoria_id pelo nome da categoria (produtos e estoque)."""
+    unico = isinstance(resultado, dict)
+    linhas = [resultado] if unico else resultado
+    if not isinstance(linhas, (list, tuple)) or not linhas:
+        return resultado
+    if not all(isinstance(linha, dict) and "categoria_id" in linha and "categoria" not in linha
+               for linha in linhas):
+        return resultado
+    nomes = {r["id"]: r["nome"]
+             for r in conexao.execute("SELECT id, nome FROM categorias").fetchall()}
+    novas = []
+    for linha in linhas:
+        nova = {}
+        for chave, valor in linha.items():
+            if chave == "categoria_id":
+                nova["categoria"] = nomes.get(valor, "-" if valor is None else f"ID {valor}")
+            else:
+                nova[chave] = valor
+        novas.append(nova)
+    return novas[0] if unico else novas
+
+
 def _preparar_resultado(resultado):
     """Transforma o retorno de uma função em algo que o template desenha."""
     if isinstance(resultado, bool):
@@ -312,6 +412,44 @@ def _preparar_resultado(resultado):
     return {"tipo": "detalhes", "pares": pares}
 
 
+def _sem_acento(texto):
+    base = unicodedata.normalize("NFKD", str(texto))
+    return "".join(c for c in base if not unicodedata.combining(c))
+
+
+def _celula_csv(valor):
+    """Valor pronto para planilha: vírgula decimal e proteção contra fórmulas."""
+    if valor is None:
+        return ""
+    if isinstance(valor, bool):
+        return "Sim" if valor else "Não"
+    if isinstance(valor, float):
+        return f"{valor:.2f}".replace(".", ",")
+    if isinstance(valor, int):
+        return str(valor)
+    texto = str(valor)
+    if texto[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        texto = "'" + texto      # o Excel não executa o texto como fórmula
+    return texto
+
+
+def _gerar_csv(resultado):
+    """CSV com ';' (padrão do Excel em português) e BOM UTF-8 (acentos corretos)."""
+    linhas = [main._como_dict(linha) for linha in resultado]
+    colunas = []
+    for linha in linhas:
+        for coluna in linha:
+            if coluna not in colunas:
+                colunas.append(coluna)
+    saida = io.StringIO()
+    escritor = csv.writer(saida, delimiter=";", lineterminator="\r\n")
+    escritor.writerow([ROTULOS_DE_COLUNA.get(c, c.replace("_", " ").capitalize())
+                       for c in colunas])
+    for linha in linhas:
+        escritor.writerow([_celula_csv(linha.get(c)) for c in colunas])
+    return "\ufeff" + saida.getvalue()
+
+
 def _produtos_para_repor(conexao, limite=8):
     """Produtos sem estoque ou abaixo do mínimo, os zerados primeiro."""
     itens = [
@@ -324,6 +462,12 @@ def _produtos_para_repor(conexao, limite=8):
 
 
 def _mensagem_sucesso(resultado):
+    if isinstance(resultado, dict) and "diferenca" in resultado:
+        d = resultado["diferenca"]
+        if d == 0:
+            return "A contagem confere com o sistema: nenhum ajuste necessário."
+        return (f"Estoque ajustado de {resultado['saldo_anterior']} para "
+                f"{resultado['saldo_novo']} ({d:+d}).")
     if isinstance(resultado, int) and not isinstance(resultado, bool):
         return f"Operação concluída. ID: {resultado}"
     if isinstance(resultado, dict) and "id" in resultado:
@@ -530,8 +674,14 @@ def criar_app(caminho_banco=None, config=None):
             abort(403)
 
         campos = _campos_visiveis(item)
+        for campo in campos:
+            if campo["tipo"] == "int":
+                campo["opcoes"] = _opcoes(_conexao(), item, campo["nome"])
+                if campo["opcoes"] is not None:
+                    campo["rotulo"] = _rotulo_da_lista(item, campo)
         contexto_base = {"item": item, "grupo": titulo, "campos": campos,
-                         "valores": {}, "erros": {}, "resultado": None}
+                         "valores": {}, "erros": {}, "resultado": None,
+                         "gi": gi, "ii": ii, "url_csv": None}
 
         if request.method == "GET":
             # Consultas sem filtros (listagens, relatórios) abrem direto.
@@ -541,6 +691,30 @@ def criar_app(caminho_banco=None, config=None):
             return render_template("operacao.html", **contexto_base)
 
         return _executar(item, campos, contexto_base, request.form)
+
+    @app.route("/m/<int:gi>/<int:ii>/csv")
+    def exportar_csv(gi, ii):
+        """Baixa em CSV o resultado de uma consulta (a mesma tabela da tela)."""
+        _, item = _localizar(gi, ii)
+        if g.usuario["perfil"] not in item.perfis or item.auditoria is not None:
+            abort(403)
+        campos = _campos_visiveis(item)
+        valores, erros = _ler_formulario(item, campos, request.args)
+        if erros:
+            abort(400)
+        try:
+            resultado = main._chamar(item.modulo, item.funcao, valores, _conexao())
+        except Exception:
+            abort(400)
+        if not isinstance(resultado, (list, tuple)):
+            abort(404)
+        conteudo = _gerar_csv(_com_nome_da_categoria(resultado, _conexao()))
+        nome = re.sub(r"[^a-z0-9]+", "-", _sem_acento(item.rotulo).lower()).strip("-")
+        arquivo = f"{nome}-{datetime.now():%Y-%m-%d}.csv"
+        return Response(
+            conteudo, mimetype="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{arquivo}"'},
+        )
 
     def _executar(item, campos, contexto_base, formulario):
         valores, erros = _ler_formulario(item, campos, formulario)
@@ -564,7 +738,13 @@ def criar_app(caminho_banco=None, config=None):
             flash(_mensagem_sucesso(resultado), "ok")
             return redirect(request.path)
 
-        contexto_base["resultado"] = _preparar_resultado(resultado)
+        contexto_base["resultado"] = _preparar_resultado(
+            _com_nome_da_categoria(resultado, _conexao()))
+        if isinstance(resultado, (list, tuple)) and resultado:
+            parametros = {c["nome"]: formulario.get(c["nome"], "").strip()
+                          for c in campos if formulario.get(c["nome"], "").strip()}
+            contexto_base["url_csv"] = url_for(
+                "exportar_csv", gi=contexto_base["gi"], ii=contexto_base["ii"], **parametros)
         return render_template("operacao.html", **contexto_base)
 
     return app
