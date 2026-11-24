@@ -21,10 +21,14 @@ import sqlite3
 from contextlib import contextmanager
 
 try:
-    from src.autenticacao import ADMIN, PERFIS, gerar_hash, normalizar_login
+    from src.autenticacao import (
+        ADMIN, PERFIS, gerar_hash, normalizar_login, verificar_senha,
+    )
     from src.banco import conectar, fechar_conexao
 except ImportError:  # quando o main.py é executado de dentro da pasta src
-    from autenticacao import ADMIN, PERFIS, gerar_hash, normalizar_login
+    from autenticacao import (
+        ADMIN, PERFIS, gerar_hash, normalizar_login, verificar_senha,
+    )
     from banco import conectar, fechar_conexao
 
 _PADRAO_LOGIN = re.compile(r"^[a-z0-9._-]{3,30}$")
@@ -187,3 +191,59 @@ def desativar_funcionario(funcionario_id, conexao=None):
                 "UPDATE funcionarios SET ativo = 0 WHERE id = ?", (funcionario_id,)
             )
         return _buscar(con, funcionario_id)
+
+
+def reativar_funcionario(funcionario_id, conexao=None):
+    """Reativa um funcionário desativado (ele volta a conseguir entrar) e o devolve."""
+    with _conexao_em_uso(conexao) as con:
+        atual = _exigir_existente(con, funcionario_id)
+        if atual["ativo"]:
+            raise ValueError(f"O funcionário {funcionario_id} já está ativo.")
+        with con:
+            con.execute(
+                "UPDATE funcionarios SET ativo = 1 WHERE id = ?", (funcionario_id,)
+            )
+        return _buscar(con, funcionario_id)
+
+
+# --------------------------------------------------------------------------
+# Senhas
+# --------------------------------------------------------------------------
+
+def _conferir_confirmacao(nova_senha, confirmacao):
+    if confirmacao is not None and confirmacao != nova_senha:
+        raise ValueError("A confirmação não confere com a nova senha.")
+
+
+def _gravar_senha(con, funcionario_id, senha_hash):
+    with con:
+        con.execute(
+            "UPDATE funcionarios SET senha_hash = ? WHERE id = ?",
+            (senha_hash, funcionario_id),
+        )
+
+
+def alterar_senha(funcionario_id, senha_atual, nova_senha, confirmacao=None,
+                  conexao=None):
+    """O próprio funcionário troca a senha, informando a atual. Devolve True."""
+    _conferir_confirmacao(nova_senha, confirmacao)
+    with _conexao_em_uso(conexao) as con:
+        _exigir_existente(con, funcionario_id)
+        linha = con.execute(
+            "SELECT senha_hash FROM funcionarios WHERE id = ?", (funcionario_id,)
+        ).fetchone()
+        if not verificar_senha(senha_atual, linha[0]):
+            raise ValueError("A senha atual está incorreta.")
+        if nova_senha == senha_atual:
+            raise ValueError("A nova senha deve ser diferente da atual.")
+        _gravar_senha(con, funcionario_id, gerar_hash(nova_senha))
+        return True
+
+
+def redefinir_senha(funcionario_id, nova_senha, confirmacao=None, conexao=None):
+    """Define uma nova senha sem exigir a antiga (uso do administrador). Devolve True."""
+    _conferir_confirmacao(nova_senha, confirmacao)
+    with _conexao_em_uso(conexao) as con:
+        _exigir_existente(con, funcionario_id)
+        _gravar_senha(con, funcionario_id, gerar_hash(nova_senha))
+        return True

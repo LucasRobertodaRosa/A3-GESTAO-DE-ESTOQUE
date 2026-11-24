@@ -154,6 +154,68 @@ def registrar_saida(
             conn.close()
 
 
+def registrar_ajuste(
+    produto_id,
+    quantidade_contada,
+    motivo=None,
+    funcionario_id=None,
+    conexao=None,
+):
+    """Ajusta o saldo ao resultado da contagem física (inventário).
+
+    A diferença entre o saldo do sistema e a contagem vira uma ENTRADA (sobra)
+    ou uma SAIDA (falta) com observação iniciada por "Ajuste de inventário",
+    sem alterar o esquema do banco. Devolve um dicionário com
+    movimentacao_id (None se não houve diferença), saldo_anterior, saldo_novo
+    e diferenca.
+    """
+    if type(quantidade_contada) is not int or quantidade_contada < 0:
+        raise ValueError("A quantidade contada deve ser um inteiro igual ou maior que zero.")
+    conn, deve_fechar = _obter_conexao(conexao)
+    try:
+        with conn:
+            saldo = _verificar_produto(conn, produto_id)
+            diferenca = quantidade_contada - saldo
+            resultado = {
+                "movimentacao_id": None,
+                "saldo_anterior": saldo,
+                "saldo_novo": quantidade_contada,
+                "diferenca": diferenca,
+            }
+            if diferenca == 0:
+                return resultado
+
+            observacao = (
+                f"Ajuste de inventário: sistema {saldo}, contagem {quantidade_contada}"
+            )
+            if motivo is not None and str(motivo).strip():
+                observacao += f". Motivo: {str(motivo).strip()}"
+
+            conn.execute(
+                "UPDATE produtos SET estoque_atual = ? WHERE id = ?",
+                (quantidade_contada, produto_id),
+            )
+            cursor = conn.execute(
+                """
+                INSERT INTO movimentacoes
+                    (produto_id, tipo, quantidade, funcionario_id, observacao)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    produto_id,
+                    "ENTRADA" if diferenca > 0 else "SAIDA",
+                    abs(diferenca),
+                    funcionario_id,
+                    observacao,
+                ),
+            )
+            resultado["movimentacao_id"] = cursor.lastrowid
+            return resultado
+    finally:
+        if deve_fechar:
+            conn.close()
+
+
 def _listar(tipo=None, produto_id=None, conexao=None):
     """Consulta o histórico com filtros opcionais e nomes associados."""
     conn, deve_fechar = _obter_conexao(conexao)
