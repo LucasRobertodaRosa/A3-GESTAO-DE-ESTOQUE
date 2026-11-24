@@ -43,13 +43,13 @@
 
 | Teste | Resultado esperado | Situação documental |
 | --- | --- | --- |
-| Primeiro acesso / criação do ADMIN | Usuário criado, senha armazenada com hash bcrypt | Relato de homologação feito pelo grupo; **anexar print/vídeo** |
-| Login correto / senha incorreta | Acesso autorizado / recusado | **Anexar evidência** |
-| Criar categoria e produto | Produto válido cadastrado com categoria existente | **Anexar evidência** |
-| Entrada 15, saída 3, tentativa de saída 20 | Saldo final 12; operação acima do saldo recusada | **Anexar evidência** |
-| Histórico | Apenas as duas movimentações válidas | **Anexar evidência** |
-| Relatórios / auditoria | Saldo coerente; ações vinculadas ao funcionário | **Anexar evidência** |
-| Perfil CONSULTA | Sem permissão de escrita | **Anexar evidência** |
+| Primeiro acesso / criação do ADMIN | Usuário criado, senha armazenada com hash bcrypt | **[Vídeo](https://drive.google.com/file/d/1LSKsu6uuUdFI5U8uuAcgmVXlCDD7OjcC/view?usp=sharing)** |
+| Login correto / senha incorreta | Acesso autorizado / recusado | **[Vídeo](https://drive.google.com/file/d/1LSKsu6uuUdFI5U8uuAcgmVXlCDD7OjcC/view?usp=sharing)** |
+| Criar categoria e produto | Produto válido cadastrado com categoria existente | **[Vídeo](https://drive.google.com/file/d/1LSKsu6uuUdFI5U8uuAcgmVXlCDD7OjcC/view?usp=sharing)** |
+| Entrada 15, saída 3, tentativa de saída 20 | Saldo final 12; operação acima do saldo recusada | **[Vídeo](https://drive.google.com/file/d/1LSKsu6uuUdFI5U8uuAcgmVXlCDD7OjcC/view?usp=sharing)** |
+| Histórico | Apenas as duas movimentações válidas | **[Vídeo](https://drive.google.com/file/d/1LSKsu6uuUdFI5U8uuAcgmVXlCDD7OjcC/view?usp=sharing)** |
+| Relatórios / auditoria | Saldo coerente; ações vinculadas ao funcionário | **[Vídeo](https://drive.google.com/file/d/1LSKsu6uuUdFI5U8uuAcgmVXlCDD7OjcC/view?usp=sharing)** |
+| Perfil CONSULTA | Sem permissão de escrita | **[Vídeo](https://drive.google.com/file/d/1LSKsu6uuUdFI5U8uuAcgmVXlCDD7OjcC/view?usp=sharing)** |
 
 > Não incluir credenciais reais, senhas, tokens ou dados pessoais em capturas.
 
@@ -116,12 +116,12 @@ Organize capturas ou vídeos sem dados sensíveis em `docs/evidencias/`, ou vinc
 
 | Evidência | Caso | Comprovação esperada | Arquivo ou URL |
 | --- | --- | --- | --- |
-| EV-01 | Primeiro acesso e autenticação | ADMIN criado e login válido; senha nunca visível | **ADICIONAR LINK REAL** |
-| EV-02 | Cadastro de categoria e produto | Produto vinculado à categoria existente | **ADICIONAR LINK REAL** |
-| EV-03 | Movimentação de estoque | Entrada 15, saída 3, tentativa de saída 20 bloqueada | **ADICIONAR LINK REAL** |
-| EV-04 | Saldo e histórico | Saldo final 12 e somente 2 movimentações válidas | **ADICIONAR LINK REAL** |
-| EV-05 | Relatórios | Totais consistentes com o saldo e as movimentações | **ADICIONAR LINK REAL** |
-| EV-06 | Permissões e auditoria | Perfil CONSULTA bloqueado e ação atribuída ao responsável | **ADICIONAR LINK REAL** |
+| EV-01 | Primeiro acesso e autenticação | ADMIN criado e login válido; senha nunca visível | **[EV-01](https://drive.google.com/file/d/1xiQd3VKMMh0PbDrJIIUQDe22XBcqLIor/view?usp=sharing)** |
+| EV-02 | Cadastro de categoria e produto | Produto vinculado à categoria existente | **[EV-02](https://drive.google.com/file/d/1hTHxIJ0M1u-WAuOB-h_6SNAzuqruQJgO/view?usp=sharing)** |
+| EV-03 | Movimentação de estoque | Entrada 15, saída 3, tentativa de saída 20 bloqueada | **[EV-03](https://drive.google.com/file/d/1k9lpdpQlkXO7g6D8cN2MFjDLtGBB2ln5/view?usp=sharing)** |
+| EV-04 | Saldo e histórico | Saldo final 12 e somente 2 movimentações válidas | **[EV-04](https://drive.google.com/file/d/1AZneZewZKJ7USvfpKIZu7t430NA02_Sf/view?usp=sharing)** |
+| EV-05 | Relatórios | Totais consistentes com o saldo e as movimentações | **[EV-05](https://drive.google.com/file/d/1s6zKZPrc-aa2A8YFbK-6jP68YRToD42E/view?usp=sharing)** |
+| EV-06 | Permissões e auditoria | Perfil CONSULTA bloqueado e ação atribuída ao responsável | **[EV-06](https://drive.google.com/file/d/1C6miBpxEGixRt70U9EJnHd5GrL7Xaent/view?usp=sharing)** |
 
 ### 5. Rastreabilidade da avaliação
 
