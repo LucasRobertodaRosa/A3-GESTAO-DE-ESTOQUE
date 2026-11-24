@@ -229,6 +229,7 @@ com banco de dados SQLite e interface web Flask.
 ### Produtos e categorias
 - Cadastro e consulta de categorias.
 - Cadastro, edição, busca e desativação de produtos.
+- Reativação de produtos desativados.
 - Validação de código, preço e estoque mínimo.
 
 ### Movimentações de estoque
@@ -237,16 +238,20 @@ com banco de dados SQLite e interface web Flask.
 - Atualização automática do estoque disponível.
 - Bloqueio de saída com saldo insuficiente.
 - Histórico de movimentações.
+- Ajuste de inventário (contagem física): a diferença vira entrada ou saída com a observação "Ajuste de inventário".
 
 ### Fornecedores
 - Cadastro e consulta de fornecedores.
 - Associação de fornecedores às entradas de estoque.
+- Reativação de fornecedores desativados.
 
 ### Funcionários e autenticação
 - Cadastro e gerenciamento de funcionários.
 - Autenticação de usuários com bcrypt.
 - Controle de acesso por perfil.
 - Perfis ADMIN, ESTOQUISTA e CONSULTA.
+- Reativação de funcionários.
+- Troca da própria senha e redefinição de senha pelo administrador.
 
 ### Relatórios
 - Relatório de estoque atual.
@@ -262,6 +267,8 @@ com banco de dados SQLite e interface web Flask.
 - Menu de terminal em Python.
 - Interface web desenvolvida com Flask.
 - Formulários e tabelas para gerenciamento do estoque.
+- Listas de escolha (nome em vez de ID digitado) e nome da categoria nas listagens de produtos.
+- Exportação em CSV das consultas (botão "Baixar CSV").
 
 
 ## Publicação sem arquivos de teste

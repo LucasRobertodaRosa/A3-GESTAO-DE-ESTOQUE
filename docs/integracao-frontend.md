@@ -28,10 +28,21 @@ Opção nova em `MENUS` aparece no site sem mexer em `web.py`.
 | `/sair` | POST | encerra a sessão |
 | `/` | GET | painel com os indicadores de `relatorios.indicadores_gerais` |
 | `/m/<grupo>/<item>` | GET, POST | formulário e resultado de uma opção de `MENUS` |
+| `/m/<grupo>/<item>/csv` | GET | baixa em CSV a tabela de uma consulta (mesmos filtros, na URL) |
 
 Consultas sem filtros (listagens, estoque atual) abrem direto no GET. Operações que gravam
 usam POST, depois redirecionam (padrão Post/Redirect/Get) e mostram a confirmação.
 `?id=3` na URL preenche o campo `id`.
+
+## Listas de escolha e CSV
+
+- Campos de ID (`id`, `produto_id`, `categoria_id`, `fornecedor_id`, `funcionario_id`) viram uma
+  lista de escolha preenchida pelo banco da requisição. "Desativar" e as saídas/entradas listam só
+  ativos; "Reativar" lista só inativos. A função do módulo continua validando o valor recebido.
+- O CSV usa `;` como separador, UTF-8 com BOM (acentos corretos no Excel), vírgula decimal e
+  prefixa com `'` textos que começam com `=`, `+`, `-` ou `@` (evita fórmulas injetadas).
+  Só consultas (itens sem `auditoria`) que devolvem lista podem ser exportadas.
+- Nas listagens de produtos (e no CSV), a coluna `categoria_id` é trocada pelo **nome** da categoria.
 
 ## Segurança
 
@@ -50,6 +61,6 @@ cadastro → entrada → saída → relatório e os erros de validação.
 ## Limitações conhecidas
 
 - O bloqueio de login fica na memória do processo (reinicia junto com o servidor).
-- Os formulários de edição pedem o `ID` digitado, como no terminal.
+- No terminal os IDs ainda são digitados; só o site tem listas de escolha.
 - `python -m src.web` usa o servidor de desenvolvimento do Flask: serve para a demonstração,
   não para produção.
