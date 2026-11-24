@@ -1,8 +1,8 @@
-"""Testes web das funções essenciais (reativação, senha, ajuste, listas de escolha)."""
+"""Testes web das funções essenciais (reativação, senha, ajuste, listas de escolha, nome da categoria)."""
 
 import unittest
 
-from src import categorias, fornecedores, movimentacoes, produtos
+from src import categorias, fornecedores, movimentacoes, produtos, web
 from tests.test_web import BaseWeb, SENHA, _url_da_opcao
 
 
@@ -107,6 +107,27 @@ class TestFuncoesWeb(BaseWeb):
                               produto_id=str(self.pid), quantidade="4")
         self.assertEqual(resposta.status_code, 302)
         self.assertEqual(produtos.buscar_produto(self.pid)["estoque_atual"], 6)
+
+    # ---------- nome da categoria ----------
+
+    def test_listagem_de_produtos_mostra_nome_da_categoria(self):
+        html = self._html(self.cliente.get(_url_da_opcao("Listar produtos")))
+        self.assertIn("Papelaria", html)
+        self.assertNotIn("ID categoria", html)
+        html = self._html(self._post(_url_da_opcao("Buscar produto (nome, código ou categoria)"),
+                                     termo="caneta"))
+        self.assertIn("Papelaria", html)
+
+    def test_com_nome_da_categoria_mantem_outros_resultados(self):
+        con = web.banco.conectar()
+        self.addCleanup(web.banco.fechar_conexao, con)
+        sem = [{"id": 1, "nome": "x"}]
+        self.assertIs(web._com_nome_da_categoria(sem, con), sem)
+        self.assertEqual(web._com_nome_da_categoria([], con), [])
+        orfao = web._com_nome_da_categoria([{"id": 1, "categoria_id": 99}], con)
+        self.assertEqual(orfao, [{"id": 1, "categoria": "ID 99"}])
+        self.assertEqual(web._com_nome_da_categoria({"categoria_id": None}, con),
+                         {"categoria": "-"})
 
 
 if __name__ == "__main__":
