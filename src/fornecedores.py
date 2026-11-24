@@ -202,3 +202,16 @@ def desativar_fornecedor(fornecedor_id, conexao=None):
         con.execute("UPDATE fornecedores SET ativo = 0 WHERE id = ?", (fornecedor_id,))
         con.commit()
         return True
+
+
+def reativar_fornecedor(fornecedor_id, conexao=None):
+    """Reativa um fornecedor desativado. Devolve True em caso de sucesso."""
+    with _conexao_em_uso(conexao) as con:
+        atual = buscar_fornecedor(fornecedor_id, conexao=con)
+        if atual is None:
+            raise ValueError("Fornecedor não encontrado.")
+        if atual["ativo"]:
+            raise ValueError("O fornecedor já está ativo.")
+        con.execute("UPDATE fornecedores SET ativo = 1 WHERE id = ?", (fornecedor_id,))
+        con.commit()
+        return True

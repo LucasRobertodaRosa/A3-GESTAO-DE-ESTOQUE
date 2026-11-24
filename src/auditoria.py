@@ -44,6 +44,7 @@ EDICAO = "EDICAO"
 DESATIVACAO = "DESATIVACAO"
 ENTRADA = "ENTRADA"
 SAIDA = "SAIDA"
+REATIVACAO = "REATIVACAO"
 
 
 # --------------------------------------------------------------------------
