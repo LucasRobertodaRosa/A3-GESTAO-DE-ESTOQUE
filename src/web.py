@@ -20,15 +20,19 @@ Segurança:
 - Cabeçalhos de segurança (CSP restritiva, sem scripts inline).
 """
 
+import csv
 import hmac
+import io
 import os
 import re
 import secrets
 import time
+import unicodedata
 from datetime import datetime
 
 from flask import (
     Flask,
+    Response,
     abort,
     current_app,
     flash,
@@ -408,6 +412,44 @@ def _preparar_resultado(resultado):
     return {"tipo": "detalhes", "pares": pares}
 
 
+def _sem_acento(texto):
+    base = unicodedata.normalize("NFKD", str(texto))
+    return "".join(c for c in base if not unicodedata.combining(c))
+
+
+def _celula_csv(valor):
+    """Valor pronto para planilha: vírgula decimal e proteção contra fórmulas."""
+    if valor is None:
+        return ""
+    if isinstance(valor, bool):
+        return "Sim" if valor else "Não"
+    if isinstance(valor, float):
+        return f"{valor:.2f}".replace(".", ",")
+    if isinstance(valor, int):
+        return str(valor)
+    texto = str(valor)
+    if texto[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        texto = "'" + texto      # o Excel não executa o texto como fórmula
+    return texto
+
+
+def _gerar_csv(resultado):
+    """CSV com ';' (padrão do Excel em português) e BOM UTF-8 (acentos corretos)."""
+    linhas = [main._como_dict(linha) for linha in resultado]
+    colunas = []
+    for linha in linhas:
+        for coluna in linha:
+            if coluna not in colunas:
+                colunas.append(coluna)
+    saida = io.StringIO()
+    escritor = csv.writer(saida, delimiter=";", lineterminator="\r\n")
+    escritor.writerow([ROTULOS_DE_COLUNA.get(c, c.replace("_", " ").capitalize())
+                       for c in colunas])
+    for linha in linhas:
+        escritor.writerow([_celula_csv(linha.get(c)) for c in colunas])
+    return "\ufeff" + saida.getvalue()
+
+
 def _produtos_para_repor(conexao, limite=8):
     """Produtos sem estoque ou abaixo do mínimo, os zerados primeiro."""
     itens = [
@@ -638,7 +680,8 @@ def criar_app(caminho_banco=None, config=None):
                 if campo["opcoes"] is not None:
                     campo["rotulo"] = _rotulo_da_lista(item, campo)
         contexto_base = {"item": item, "grupo": titulo, "campos": campos,
-                         "valores": {}, "erros": {}, "resultado": None}
+                         "valores": {}, "erros": {}, "resultado": None,
+                         "gi": gi, "ii": ii, "url_csv": None}
 
         if request.method == "GET":
             # Consultas sem filtros (listagens, relatórios) abrem direto.
@@ -648,6 +691,30 @@ def criar_app(caminho_banco=None, config=None):
             return render_template("operacao.html", **contexto_base)
 
         return _executar(item, campos, contexto_base, request.form)
+
+    @app.route("/m/<int:gi>/<int:ii>/csv")
+    def exportar_csv(gi, ii):
+        """Baixa em CSV o resultado de uma consulta (a mesma tabela da tela)."""
+        _, item = _localizar(gi, ii)
+        if g.usuario["perfil"] not in item.perfis or item.auditoria is not None:
+            abort(403)
+        campos = _campos_visiveis(item)
+        valores, erros = _ler_formulario(item, campos, request.args)
+        if erros:
+            abort(400)
+        try:
+            resultado = main._chamar(item.modulo, item.funcao, valores, _conexao())
+        except Exception:
+            abort(400)
+        if not isinstance(resultado, (list, tuple)):
+            abort(404)
+        conteudo = _gerar_csv(_com_nome_da_categoria(resultado, _conexao()))
+        nome = re.sub(r"[^a-z0-9]+", "-", _sem_acento(item.rotulo).lower()).strip("-")
+        arquivo = f"{nome}-{datetime.now():%Y-%m-%d}.csv"
+        return Response(
+            conteudo, mimetype="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{arquivo}"'},
+        )
 
     def _executar(item, campos, contexto_base, formulario):
         valores, erros = _ler_formulario(item, campos, formulario)
@@ -673,6 +740,11 @@ def criar_app(caminho_banco=None, config=None):
 
         contexto_base["resultado"] = _preparar_resultado(
             _com_nome_da_categoria(resultado, _conexao()))
+        if isinstance(resultado, (list, tuple)) and resultado:
+            parametros = {c["nome"]: formulario.get(c["nome"], "").strip()
+                          for c in campos if formulario.get(c["nome"], "").strip()}
+            contexto_base["url_csv"] = url_for(
+                "exportar_csv", gi=contexto_base["gi"], ii=contexto_base["ii"], **parametros)
         return render_template("operacao.html", **contexto_base)
 
     return app

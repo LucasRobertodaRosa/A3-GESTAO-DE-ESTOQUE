@@ -1,4 +1,4 @@
-"""Testes web das funções essenciais (reativação, senha, ajuste, listas de escolha, nome da categoria)."""
+"""Testes web das funções essenciais (reativação, senha, ajuste, listas de escolha, nome da categoria e CSV)."""
 
 import unittest
 
@@ -128,6 +128,55 @@ class TestFuncoesWeb(BaseWeb):
         self.assertEqual(orfao, [{"id": 1, "categoria": "ID 99"}])
         self.assertEqual(web._com_nome_da_categoria({"categoria_id": None}, con),
                          {"categoria": "-"})
+
+    # ---------- CSV ----------
+
+    def test_csv_de_produtos_tem_nome_da_categoria(self):
+        texto = self.cliente.get(_url_da_opcao("Listar produtos") + "/csv").get_data(as_text=True)
+        self.assertIn("Papelaria", texto)
+        self.assertNotIn("ID categoria", texto)
+
+    def test_csv_do_estoque_atual(self):
+        resposta = self.cliente.get(_url_da_opcao("Estoque atual") + "/csv")
+        self.assertEqual(resposta.status_code, 200)
+        self.assertTrue(resposta.mimetype.startswith("text/csv"))
+        self.assertIn("attachment", resposta.headers["Content-Disposition"])
+        self.assertIn("estoque-atual-", resposta.headers["Content-Disposition"])
+        texto = resposta.get_data(as_text=True)
+        self.assertTrue(texto.startswith("﻿"))
+        linhas = texto.lstrip("﻿").splitlines()
+        self.assertIn(";", linhas[0])
+        self.assertTrue(any("Caneta azul" in linha and "2,50" in linha for linha in linhas))
+
+    def test_csv_com_filtros_e_erros(self):
+        url = _url_da_opcao("Movimentações por produto") + "/csv"
+        self.assertEqual(self.cliente.get(url, query_string={"produto_id": self.pid}).status_code, 200)
+        self.assertEqual(self.cliente.get(url).status_code, 400)        # filtro obrigatório
+        self.assertEqual(self.cliente.get(url, query_string={"produto_id": "x"}).status_code, 400)
+
+    def test_csv_so_para_consultas_e_com_permissao(self):
+        self.assertEqual(self.cliente.get(_url_da_opcao("Cadastrar produto") + "/csv").status_code, 403)
+        self.assertEqual(self.cliente.get(_url_da_opcao("Consultar eventos (Enter ignora o filtro)") + "/csv").status_code, 200)
+        self._criar_funcionario("cris", "CONSULTA")
+        outro = self.app.test_client()
+        self._post("/entrar", cliente=outro, login="cris", senha=SENHA)
+        self.assertEqual(outro.get(_url_da_opcao("Consultar eventos (Enter ignora o filtro)") + "/csv").status_code, 403)
+        self.assertEqual(self.app.test_client().get("/m/4/0/csv").status_code, 302)  # sem login
+
+    def test_csv_de_indicadores_que_nao_e_lista(self):
+        self.assertEqual(self.cliente.get(_url_da_opcao("Indicadores gerais") + "/csv").status_code, 404)
+
+    def test_botao_baixar_csv_aparece_na_tabela(self):
+        html = self._html(self.cliente.get(_url_da_opcao("Estoque atual")))
+        self.assertIn("Baixar CSV", html)
+
+    def test_celula_csv_protege_contra_formulas(self):
+        self.assertEqual(web._celula_csv("=1+1"), "'=1+1")
+        self.assertEqual(web._celula_csv("@soma"), "'@soma")
+        self.assertEqual(web._celula_csv(3.5), "3,50")
+        self.assertEqual(web._celula_csv(-3), "-3")
+        self.assertEqual(web._celula_csv(None), "")
+        self.assertEqual(web._celula_csv(True), "Sim")
 
 
 if __name__ == "__main__":

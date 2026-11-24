@@ -76,7 +76,8 @@
       </tbody>
     </table>
   </div>
-  <p class="total">{{ resultado.total }} registro{{ 's' if resultado.total != 1 }}</p>
+  <p class="total">{{ resultado.total }} registro{{ 's' if resultado.total != 1 }}
+    {% if url_csv %}· <a class="link-csv" href="{{ url_csv }}" download>Baixar CSV</a>{% endif %}</p>
   {% elif resultado.tipo == 'detalhes' %}
   <dl class="detalhes">
     {% for chave, valor in resultado.pares %}<dt>{{ chave }}</dt><dd>{{ valor }}</dd>{% endfor %}
