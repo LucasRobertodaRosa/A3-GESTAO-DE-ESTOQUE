@@ -347,6 +347,29 @@ def _celula(coluna, valor, linha):
     return celula
 
 
+def _com_nome_da_categoria(resultado, conexao):
+    """Troca a coluna categoria_id pelo nome da categoria (produtos e estoque)."""
+    unico = isinstance(resultado, dict)
+    linhas = [resultado] if unico else resultado
+    if not isinstance(linhas, (list, tuple)) or not linhas:
+        return resultado
+    if not all(isinstance(l, dict) and "categoria_id" in l and "categoria" not in l
+               for l in linhas):
+        return resultado
+    nomes = {r["id"]: r["nome"]
+             for r in conexao.execute("SELECT id, nome FROM categorias").fetchall()}
+    novas = []
+    for linha in linhas:
+        nova = {}
+        for chave, valor in linha.items():
+            if chave == "categoria_id":
+                nova["categoria"] = nomes.get(valor, "-" if valor is None else f"ID {valor}")
+            else:
+                nova[chave] = valor
+        novas.append(nova)
+    return novas[0] if unico else novas
+
+
 def _preparar_resultado(resultado):
     """Transforma o retorno de uma função em algo que o template desenha."""
     if isinstance(resultado, bool):
@@ -648,7 +671,8 @@ def criar_app(caminho_banco=None, config=None):
             flash(_mensagem_sucesso(resultado), "ok")
             return redirect(request.path)
 
-        contexto_base["resultado"] = _preparar_resultado(resultado)
+        contexto_base["resultado"] = _preparar_resultado(
+            _com_nome_da_categoria(resultado, _conexao()))
         return render_template("operacao.html", **contexto_base)
 
     return app
