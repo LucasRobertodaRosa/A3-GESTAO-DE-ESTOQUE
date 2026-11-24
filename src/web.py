@@ -357,8 +357,8 @@ def _com_nome_da_categoria(resultado, conexao):
     linhas = [resultado] if unico else resultado
     if not isinstance(linhas, (list, tuple)) or not linhas:
         return resultado
-    if not all(isinstance(l, dict) and "categoria_id" in l and "categoria" not in l
-               for l in linhas):
+    if not all(isinstance(linha, dict) and "categoria_id" in linha and "categoria" not in linha
+               for linha in linhas):
         return resultado
     nomes = {r["id"]: r["nome"]
              for r in conexao.execute("SELECT id, nome FROM categorias").fetchall()}
