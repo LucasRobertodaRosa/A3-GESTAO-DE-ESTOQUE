@@ -1,4 +1,4 @@
-"""Testes das funções essenciais: reativação de cadastros."""
+"""Testes das funções essenciais: reativação e troca de senha."""
 
 import shutil
 import tempfile
@@ -69,6 +69,46 @@ class TestReativacao(BaseComBanco):
             funcionarios.reativar_funcionario(beto)
         with self.assertRaises(ValueError):
             funcionarios.reativar_funcionario(999)
+
+
+class TestSenhas(BaseComBanco):
+    def setUp(self):
+        super().setUp()
+        self.ana = funcionarios.cadastrar_funcionario("Ana", "ana", "segredo1", "ADMIN")
+
+    def test_alterar_senha(self):
+        self.assertTrue(funcionarios.alterar_senha(self.ana, "segredo1", "novasenha", "novasenha"))
+        self.assertIsNone(autenticacao.login("ana", "segredo1"))
+        self.assertIsNotNone(autenticacao.login("ana", "novasenha"))
+
+    def test_alterar_senha_exige_senha_atual_correta(self):
+        with self.assertRaises(ValueError):
+            funcionarios.alterar_senha(self.ana, "errada", "novasenha")
+        self.assertIsNotNone(autenticacao.login("ana", "segredo1"))
+
+    def test_alterar_senha_regras(self):
+        with self.assertRaises(ValueError):       # confirmação diferente
+            funcionarios.alterar_senha(self.ana, "segredo1", "novasenha", "outra")
+        with self.assertRaises(ValueError):       # igual à atual
+            funcionarios.alterar_senha(self.ana, "segredo1", "segredo1")
+        with self.assertRaises(ValueError):       # curta demais
+            funcionarios.alterar_senha(self.ana, "segredo1", "123")
+        with self.assertRaises(ValueError):       # funcionário inexistente
+            funcionarios.alterar_senha(999, "segredo1", "novasenha")
+
+    def test_redefinir_senha(self):
+        beto = funcionarios.cadastrar_funcionario("Beto", "beto", "segredo1", "CONSULTA")
+        self.assertTrue(funcionarios.redefinir_senha(beto, "outrasenha", "outrasenha"))
+        self.assertIsNone(autenticacao.login("beto", "segredo1"))
+        self.assertIsNotNone(autenticacao.login("beto", "outrasenha"))
+
+    def test_redefinir_senha_erros(self):
+        with self.assertRaises(ValueError):
+            funcionarios.redefinir_senha(self.ana, "novasenha", "diferente")
+        with self.assertRaises(ValueError):
+            funcionarios.redefinir_senha(self.ana, "123")
+        with self.assertRaises(ValueError):
+            funcionarios.redefinir_senha(999, "novasenha")
 
 
 if __name__ == "__main__":

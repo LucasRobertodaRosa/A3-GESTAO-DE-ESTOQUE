@@ -3,7 +3,7 @@
 import unittest
 
 from src import categorias, movimentacoes, produtos
-from tests.test_web import BaseWeb, _url_da_opcao
+from tests.test_web import BaseWeb, SENHA, _url_da_opcao
 
 
 class TestFuncoesWeb(BaseWeb):
@@ -27,6 +27,43 @@ class TestFuncoesWeb(BaseWeb):
         self.assertEqual(resposta.status_code, 302)
         self.assertTrue(produtos.buscar_produto(self.pid)["ativo"])
         self.assertIn("REATIVACAO", self._acoes_de_auditoria())
+
+    # ---------- senha ----------
+
+    def test_trocar_minha_senha(self):
+        resposta = self._post(_url_da_opcao("Trocar minha senha"),
+                              senha_atual=SENHA, nova_senha="novasenha",
+                              confirmacao="novasenha")
+        self.assertEqual(resposta.status_code, 302)
+        self.assertIn("SENHA", self._acoes_de_auditoria())
+        self.cliente.post("/sair", data={"csrf_token": "x"})
+        outro = self.app.test_client()
+        self.assertEqual(self._post("/entrar", cliente=outro, login="ana",
+                                    senha=SENHA).status_code, 401)   # senha antiga recusada
+        self.assertEqual(self._post("/entrar", cliente=outro, login="ana",
+                                    senha="novasenha").status_code, 302)
+
+    def test_trocar_senha_com_senha_atual_errada(self):
+        resposta = self._post(_url_da_opcao("Trocar minha senha"),
+                              senha_atual="errada1", nova_senha="novasenha",
+                              confirmacao="novasenha")
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("senha atual está incorreta", self._html(resposta))
+
+    def test_trocar_senha_com_confirmacao_diferente(self):
+        resposta = self._post(_url_da_opcao("Trocar minha senha"),
+                              senha_atual=SENHA, nova_senha="novasenha",
+                              confirmacao="diferente")
+        self.assertEqual(resposta.status_code, 400)
+
+    def test_consulta_nao_pode_redefinir_senha_de_outro(self):
+        self._criar_funcionario("cris", "CONSULTA")
+        outro = self.app.test_client()
+        self._post("/entrar", cliente=outro, login="cris", senha=SENHA)
+        resposta = self._post(_url_da_opcao("Redefinir senha de um funcionário"),
+                              cliente=outro, id="1", nova_senha="hackeada1",
+                              confirmacao="hackeada1")
+        self.assertEqual(resposta.status_code, 403)
 
 
 if __name__ == "__main__":
