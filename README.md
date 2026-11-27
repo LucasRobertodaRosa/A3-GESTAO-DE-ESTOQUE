@@ -177,6 +177,27 @@ python -m ruff check .
 O workflow de integração contínua está em
 `.github/workflows/backend-ci.yml`.
 
+### SonarCloud (Quality Gate)
+
+A CI também envia o código e o `coverage.xml` ao SonarCloud e falha se o
+Quality Gate não passar. A configuração está em `sonar-project.properties`.
+Para ativar:
+
+1. Em <https://sonarcloud.io>, entrar com o GitHub e importar o repositório
+   (a conta dona do repositório precisa autorizar a organização).
+2. Em *Administration → Analysis Method*, desligar a *Automatic Analysis*.
+3. Gerar um token e cadastrá-lo no GitHub em
+   *Settings → Secrets and variables → Actions* com o nome `SONAR_TOKEN`.
+4. Conferir se `sonar.organization` e `sonar.projectKey` batem com o painel.
+
+Sem o secret `SONAR_TOKEN`, a etapa do SonarCloud é pulada e o restante da CI roda normalmente.
+
+### Convenção de commits
+
+As mensagens seguem o padrão *Conventional Commits*: `tipo(escopo opcional): descrição`,
+com os tipos `feat`, `fix`, `test`, `docs`, `refactor`, `chore` e `ci`.
+Exemplo: `fix(movimentacoes): bloqueia saída com saldo insuficiente`.
+
 As informações de homologação estão em
 `docs/EVIDENCIAS_A3.md`.
 
