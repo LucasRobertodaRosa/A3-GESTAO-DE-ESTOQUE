@@ -16,10 +16,15 @@ jobs:
     name: Testes, cobertura e Ruff
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
     steps:
       - name: Obter codigo
         uses: actions/checkout@v4
+        with:
+          # Historico completo para o SonarCloud identificar o codigo novo
+          fetch-depth: 0
 
       - name: Configurar Python
         uses: actions/setup-python@v5
@@ -42,6 +47,14 @@ jobs:
 
       - name: Analise estatica com Ruff
         run: python -m ruff check .
+
+      # Pulada quando o secret SONAR_TOKEN nao existe (ex.: PR vindo de fork)
+      - name: Analise SonarCloud e Quality Gate
+        if: env.SONAR_TOKEN != ''
+        uses: SonarSource/sonarqube-scan-action@v8.5.1
+        with:
+          args: >
+            -Dsonar.qualitygate.wait=true
 
       - name: Salvar relatorio de cobertura
         if: always()
