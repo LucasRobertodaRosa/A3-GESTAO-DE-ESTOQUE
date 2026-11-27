@@ -8,11 +8,11 @@
 - Versão publicada: [`v1.0.0`](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/releases/tag/v1.0.0)
 - Commit da versão publicada: [`a006ab4`](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/commit/a006ab4)
 - PR de integração `develop` → `main`: [#40 — Release v1.0.0](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/pull/40), integrado em 15/11/2026
-- Commit/branch usados na *homologação final do grupo*: `main` em [`5ed896d`](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/commit/5ed896db71075e1868447e698edd90bddd5c1bed) (`5ed896db71075e1868447e698edd90bddd5c1bed`), conferido em 27/11/2026
+- Commit/branch usados na *homologação final do grupo*: `main` em [`3d63e86`](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/commit/3d63e8683f6f070ad5d204a258f8bd309a85bc85) (`3d63e8683f6f070ad5d204a258f8bd309a85bc85`), conferido em 27/11/2026
 
 ## Resultado da homologação local (27/11/2026)
 
-Execução local na revisão `5ed896d`, Windows 11, Python 3.15.2:
+Execução local na revisão `3d63e86`, Windows 11, Python 3.15.2:
 
 | Comando | Resultado |
 | --- | --- |
@@ -39,8 +39,8 @@ Todas as issues do repositório (incluindo as abertas pelo professor: #1, #14 e 
 | Verificação | Evidência verificável | Situação |
 | --- | --- | --- |
 | GitHub Actions | [Backend CI #6, versão v1.0.0](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/actions/runs/43677846616) e [Backend CI #7, main](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/actions/runs/43678536545) | Ambas as execuções aparecem como concluídas com sucesso no GitHub |
-| Testes automatizados | `python -m pytest tests/ -v`; [configuração da CI](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/blob/main/.github/workflows/backend-ci.yml) | **307 testes aprovados** na revisão `5ed896d` (ver homologação local acima) |
-| Cobertura mínima de 75% | A CI executa `python -m coverage report -m --fail-under=75` | **87%** pelo `coverage.py` na revisão `5ed896d` |
+| Testes automatizados | `python -m pytest tests/ -v`; [configuração da CI](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/blob/main/.github/workflows/backend-ci.yml) | **307 testes aprovados** na revisão `3d63e86` (ver homologação local acima) |
+| Cobertura mínima de 75% | A CI executa `python -m coverage report -m --fail-under=75` | **87%** pelo `coverage.py` na revisão `3d63e86` |
 | Ruff | A CI executa `python -m ruff check .` | Sem apontamentos (`All checks passed!`) |
 | SonarCloud / Quality Gate | Etapa `Analise SonarCloud e Quality Gate` da CI, configurada em `sonar-project.properties`; envia `coverage.xml` e espera o resultado do Quality Gate (`sonar.qualitygate.wait=true`) | **Pendente:** inserir o link do painel e o status do Quality Gate após a primeira análise. Registrar os apontamentos iniciais (segurança, confiabilidade, manutenibilidade, duplicações e complexidade) e as correções na seção abaixo |
 
