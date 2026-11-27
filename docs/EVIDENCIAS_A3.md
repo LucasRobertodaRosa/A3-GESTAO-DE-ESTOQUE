@@ -8,17 +8,57 @@
 - Versão publicada: [`v1.0.0`](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/releases/tag/v1.0.0)
 - Commit da versão publicada: [`a006ab4`](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/commit/a006ab4)
 - PR de integração `develop` → `main`: [#40 — Release v1.0.0](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/pull/40), integrado em 15/11/2026
-- Commit/branch usados na *homologação final do grupo*: **confirmar após rodar novamente os testes**, pois podem existir commits de documentação posteriores à release
+- Commit/branch usados na *homologação final do grupo*: `main` em [`5ed896d`](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/commit/5ed896db71075e1868447e698edd90bddd5c1bed) (`5ed896db71075e1868447e698edd90bddd5c1bed`), conferido em 27/11/2026
+
+## Resultado da homologação local (27/11/2026)
+
+Execução local na revisão `5ed896d`, Windows 11, Python 3.15.2:
+
+| Comando | Resultado |
+| --- | --- |
+| `python -m pytest tests/` | **307 testes aprovados** (mais 125 subtestes), 0 falhas |
+| `python -m coverage report` | **87% de cobertura total** (1556 instruções, 204 não cobertas) |
+| `python -m ruff check .` | `All checks passed!` |
+
+Cobertura por módulo:
+
+| Módulo | Cobertura |
+| --- | --- |
+| `banco.py`, `categorias.py`, `produtos.py` | 100% |
+| `fornecedores.py`, `funcionarios.py` | 98% |
+| `autenticacao.py`, `web.py` | 97% |
+| `movimentacoes.py` | 96% |
+| `relatorios.py` | 91% |
+| `auditoria.py` | 71% |
+| `main.py` (menu de terminal) | 52% |
+
+Todas as issues do repositório (incluindo as abertas pelo professor: #1, #14 e #41) estão fechadas.
 
 ## Qualidade e integração contínua
 
 | Verificação | Evidência verificável | Situação |
 | --- | --- | --- |
 | GitHub Actions | [Backend CI #6, versão v1.0.0](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/actions/runs/43677846616) e [Backend CI #7, main](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/actions/runs/43678536545) | Ambas as execuções aparecem como concluídas com sucesso no GitHub |
-| Testes automatizados | `python -m pytest tests/ -v`; [configuração da CI](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/blob/main/.github/workflows/backend-ci.yml) | O job foi aprovado; **número exato de testes precisa ser copiado do log ou de execução local da mesma versão** |
-| Cobertura mínima de 75% | A CI executa `python -m coverage report -m --fail-under=75` | O job aprovado indica que o limite foi atingido; **percentual exato precisa ser copiado do relatório `coverage.py` ou do artefato `coverage.xml`** |
-| Ruff | A CI executa `python -m ruff check .` | Etapa aprovada no workflow publicado |
-| SonarCloud / Quality Gate | Link do painel do projeto, se aplicável à exigência do professor | **Ainda não comprovado neste documento**; não confundir com o GitHub Actions |
+| Testes automatizados | `python -m pytest tests/ -v`; [configuração da CI](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/blob/main/.github/workflows/backend-ci.yml) | **307 testes aprovados** na revisão `5ed896d` (ver homologação local acima) |
+| Cobertura mínima de 75% | A CI executa `python -m coverage report -m --fail-under=75` | **87%** pelo `coverage.py` na revisão `5ed896d` |
+| Ruff | A CI executa `python -m ruff check .` | Sem apontamentos (`All checks passed!`) |
+| SonarCloud / Quality Gate | Etapa `Analise SonarCloud e Quality Gate` da CI, configurada em `sonar-project.properties`; envia `coverage.xml` e espera o resultado do Quality Gate (`sonar.qualitygate.wait=true`) | **Pendente:** inserir o link do painel e o status do Quality Gate após a primeira análise. Registrar os apontamentos iniciais (segurança, confiabilidade, manutenibilidade, duplicações e complexidade) e as correções na seção abaixo |
+
+## Análise estática no SonarCloud — antes e depois do Quality Gate
+
+Painel do projeto: **inserir link** (ex.: `https://sonarcloud.io/project/overview?id=LucasRobertodaRosa_A3-GESTAO-DE-ESTOQUE`)
+
+| Medida | Primeira análise (antes) | Após correções (depois) | Correções aplicadas (commits) |
+| --- | --- | --- | --- |
+| Segurança (Security) | preencher | preencher | preencher |
+| Confiabilidade (Reliability) | preencher | preencher | preencher |
+| Manutenibilidade (Maintainability) | preencher | preencher | preencher |
+| Duplicações | preencher | preencher | preencher |
+| Complexidade (ciclomática/cognitiva) | preencher | preencher | preencher |
+| Cobertura | preencher | preencher | — |
+| **Quality Gate** | preencher | **Passed** (meta) | — |
+
+Guarde um print da primeira análise antes de corrigir os apontamentos: ele é a evidência do "antes" exigida no item 2.12 e no slide de evolução do software.
 
 **Observação:** o documento de análise datado de 15/11 estima 236 testes e aproximadamente 85% de cobertura com ferramentas substitutas em sandbox; esses valores **não são o resultado oficial do `pytest`/`coverage.py`** e por isso não foram registrados como medições finais.
 
