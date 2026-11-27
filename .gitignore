@@ -18,6 +18,7 @@ htmlcov/
 .nox/
 coverage.xml
 test-results/
+.scannerwork/
 
 # Banco SQLite local
 *.db
