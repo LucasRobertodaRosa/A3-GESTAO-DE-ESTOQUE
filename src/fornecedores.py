@@ -25,7 +25,14 @@ except ImportError:  # quando o main.py é executado de dentro da pasta src
 
 _COLUNAS = "id, nome, cnpj, telefone, email, ativo"
 _PESOS_CNPJ = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
-_PADRAO_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+def _formato_de_email(email):
+    """usuario@dominio.ext, sem espaços, sem regex (evita backtracking)."""
+    usuario, arroba, dominio = email.partition("@")
+    partes = dominio.split(".")
+    return (bool(arroba) and bool(usuario) and "@" not in dominio
+            and len(partes) >= 2 and all(partes)
+            and not any(c.isspace() for c in email))
 
 
 # --------------------------------------------------------------------------
@@ -97,7 +104,7 @@ def _validar_email(email):
     if email is None or not str(email).strip():
         return None
     email = str(email).strip().lower()
-    if not _PADRAO_EMAIL.match(email):
+    if not _formato_de_email(email):
         raise ValueError("E-mail inválido.")
     return email
 
