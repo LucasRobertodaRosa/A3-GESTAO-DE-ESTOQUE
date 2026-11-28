@@ -6,7 +6,7 @@
 <form method="post" class="formulario">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <label><span class="rotulo">Nome</span>
-    <input name="nome" value="{{ valores.nome }}" required autofocus>
+    <input name="nome" value="{{ valores.nome }}" autocomplete="name" required>
   </label>
   <label><span class="rotulo">Login</span>
     <input name="login" value="{{ valores.login }}" autocomplete="username" required>
