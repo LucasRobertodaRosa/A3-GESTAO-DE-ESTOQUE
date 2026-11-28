@@ -54,9 +54,11 @@ class TestSenhas(BaseComBanco):
         self.assertTrue(senha_hash.startswith("$2"))  # formato do bcrypt
 
     def test_mesma_senha_gera_hashes_diferentes(self):
-        self.assertNotEqual(
-            autenticacao.gerar_hash("segredo1"), autenticacao.gerar_hash("segredo1")
-        )
+        primeiro = autenticacao.gerar_hash("segredo1")
+        segundo = autenticacao.gerar_hash("segredo1")
+
+        self.assertNotEqual(primeiro, segundo)  # salt aleatório a cada hash
+        self.assertTrue(autenticacao.verificar_senha("segredo1", segundo))
 
     def test_verificar_senha_certa_e_errada(self):
         senha_hash = autenticacao.gerar_hash("segredo1")

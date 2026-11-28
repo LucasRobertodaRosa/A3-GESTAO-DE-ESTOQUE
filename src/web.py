@@ -13,7 +13,7 @@ site sem alterar este arquivo.
 Segurança:
 - Sessão assinada (defina SECRET_KEY no ambiente; sem ela, uma chave aleatória
   é gerada a cada início e as sessões antigas deixam de valer).
-- Token CSRF em todo POST.
+- Token CSRF em todo POST (Flask-WTF CSRFProtect).
 - Perfil conferido no servidor em cada requisição (funcionário desativado perde
   o acesso na hora); o menu escondido não substitui a verificação.
 - Bloqueio temporário do login após várias falhas seguidas.
@@ -21,7 +21,6 @@ Segurança:
 """
 
 import csv
-import hmac
 import io
 import os
 import re
@@ -43,6 +42,7 @@ from flask import (
     session,
     url_for,
 )
+from flask_wtf.csrf import CSRFError, CSRFProtect
 
 try:
     from src import auditoria, autenticacao, banco, funcionarios, main, relatorios
@@ -147,7 +147,8 @@ def _campos_visiveis(item):
             continue
         base = tipo.rstrip("?")
         rotulo = pergunta.strip().rstrip(":").strip()
-        rotulo = re.sub(r"\s*\(opcional\)$", "", rotulo)   # o template já avisa
+        if rotulo.endswith("(opcional)"):                 # o template já avisa
+            rotulo = rotulo[:-len("(opcional)")].rstrip()
         if base == "perfil":
             rotulo = rotulo.split(" (")[0]
         campos.append({
@@ -180,7 +181,8 @@ def _rotulo_da_lista(item, campo):
     """'ID do produto' -> 'Produto' (o usuário escolhe na lista, não digita o ID)."""
     if campo["nome"] == "id":
         return _NOME_NO_SINGULAR[_tabela_do_campo(item, "id")]
-    rotulo = re.sub(r"\s*\(ID\)", "", campo["rotulo"])
+    partes = campo["rotulo"].split("(ID)")
+    rotulo = "".join(p.rstrip() for p in partes[:-1]) + partes[-1]
     rotulo = re.sub(r"^ID d[oa] ", "", rotulo)
     return rotulo[:1].upper() + rotulo[1:]
 
@@ -492,6 +494,9 @@ def criar_app(caminho_banco=None, config=None):
     if config:
         app.config.update(config)
 
+    # Token CSRF em todo POST (o template usa csrf_token(), registrado pelo Flask-WTF).
+    CSRFProtect(app)
+
     app.extensions["falhas_login"] = {}   # login -> {"conta": int, "ate": float}
 
     inicial = banco.conectar(app.config["CAMINHO_BANCO"])
@@ -502,12 +507,6 @@ def criar_app(caminho_banco=None, config=None):
 
     # ---------- infraestrutura ----------
 
-    def token_csrf():
-        if "csrf" not in session:
-            session["csrf"] = secrets.token_hex(16)
-        return session["csrf"]
-
-    app.jinja_env.globals["csrf_token"] = token_csrf
     app.jinja_env.filters["moeda"] = _moeda
 
     @app.context_processor
@@ -543,12 +542,6 @@ def criar_app(caminho_banco=None, config=None):
         if request.endpoint in (None, "static"):
             return None
 
-        if request.method == "POST":
-            enviado = request.form.get("csrf_token", "").encode("utf-8")
-            esperado = session.get("csrf", "").encode("utf-8")
-            if not esperado or not hmac.compare_digest(enviado, esperado):
-                abort(400, "Sessão expirada ou formulário inválido. Recarregue a página.")
-
         conexao = _conexao()
         total = conexao.execute("SELECT COUNT(*) FROM funcionarios").fetchone()[0]
         if total == 0:
@@ -579,6 +572,13 @@ def criar_app(caminho_banco=None, config=None):
         return render_template(
             "erro.html", codigo=erro.code, mensagem=mensagens[erro.code]
         ), erro.code
+
+    @app.errorhandler(CSRFError)
+    def token_csrf_invalido(_erro):
+        return render_template(
+            "erro.html", codigo=400,
+            mensagem="Sessão expirada ou formulário inválido. Recarregue a página.",
+        ), 400
 
     # ---------- primeiro acesso e login ----------
 

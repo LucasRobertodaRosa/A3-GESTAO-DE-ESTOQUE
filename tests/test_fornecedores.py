@@ -132,7 +132,7 @@ class TestCadastrarFornecedor(BaseComBanco):
         self.assertEqual(self.total_no_banco(), 2)
 
     def test_rejeita_email_invalido(self):
-        for email in ("abc", "a@b", "a b@c.com", "@c.com"):
+        for email in ("abc", "a@b", "a b@c.com", "@c.com", "a@b..com", "a@@b.com", "a@.com"):
             with self.subTest(email=email):
                 with self.assertRaisesRegex(ValueError, "mail"):
                     self.cadastrar(email=email)
