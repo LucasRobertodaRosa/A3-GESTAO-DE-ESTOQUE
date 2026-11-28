@@ -37,7 +37,11 @@
       {% endfor %}
     </select>
     {% elif campo.tipo == 'senha' %}
-    <input name="{{ campo.nome }}" type="password" autocomplete="{{ 'current-password' if campo.nome == 'senha_atual' else 'new-password' }}" {% if not campo.opcional %}required{% endif %}>
+    {% if campo.nome == 'senha_atual' %}
+    <input name="{{ campo.nome }}" type="password" autocomplete="current-password" {% if not campo.opcional %}required{% endif %}>
+    {% else %}
+    <input name="{{ campo.nome }}" type="password" autocomplete="new-password" {% if not campo.opcional %}required{% endif %}>
+    {% endif %}
     {% elif campo.tipo == 'int' %}
     <input name="{{ campo.nome }}" type="number" step="1" value="{{ valores.get(campo.nome, '') }}" {% if not campo.opcional %}required{% endif %}>
     {% elif campo.tipo == 'decimal' %}
