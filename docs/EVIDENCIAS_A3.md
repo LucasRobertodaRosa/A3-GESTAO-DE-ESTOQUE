@@ -8,16 +8,16 @@
 - Versão publicada: [`v1.0.0`](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/releases/tag/v1.0.0)
 - Commit da versão publicada: [`a006ab4`](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/commit/a006ab4)
 - PR de integração `develop` → `main`: [#40 — Release v1.0.0](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/pull/40), integrado em 15/11/2026
-- Commit/branch usados na *homologação final do grupo*: `main` em [`3d63e86`](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/commit/3d63e8683f6f070ad5d204a258f8bd309a85bc85) (`3d63e8683f6f070ad5d204a258f8bd309a85bc85`), conferido em 27/11/2026
+- Commit/branch usados na *homologação final do grupo*: `main` em [`b65fc00`](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/commit/b65fc00aa3f05c567e3306d88b0ab2e869c52a08) (`b65fc00aa3f05c567e3306d88b0ab2e869c52a08`), conferido em 28/11/2026, após as correções do SonarCloud (PRs #51 e #52)
 
-## Resultado da homologação local (27/11/2026)
+## Resultado da homologação local (28/11/2026)
 
-Execução local na revisão `3d63e86`, Windows 11, Python 3.15.2:
+Execução local na revisão `b65fc00`, Windows 11, Python 3.15.2:
 
 | Comando | Resultado |
 | --- | --- |
-| `python -m pytest tests/` | **307 testes aprovados** (mais 125 subtestes), 0 falhas |
-| `python -m coverage report` | **87% de cobertura total** (1556 instruções, 204 não cobertas) |
+| `python -m pytest tests/` | **307 testes aprovados** (mais 128 subtestes), 0 falhas |
+| `python -m coverage report` | **87% de cobertura total** (1555 instruções, 204 não cobertas) |
 | `python -m ruff check .` | `All checks passed!` |
 
 Cobertura por módulo:
@@ -39,26 +39,30 @@ Todas as issues do repositório (incluindo as abertas pelo professor: #1, #14 e 
 | Verificação | Evidência verificável | Situação |
 | --- | --- | --- |
 | GitHub Actions | [Backend CI #6, versão v1.0.0](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/actions/runs/43677846616) e [Backend CI #7, main](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/actions/runs/43678536545) | Ambas as execuções aparecem como concluídas com sucesso no GitHub |
-| Testes automatizados | `python -m pytest tests/ -v`; [configuração da CI](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/blob/main/.github/workflows/backend-ci.yml) | **307 testes aprovados** na revisão `3d63e86` (ver homologação local acima) |
-| Cobertura mínima de 75% | A CI executa `python -m coverage report -m --fail-under=75` | **87%** pelo `coverage.py` na revisão `3d63e86` |
+| Testes automatizados | `python -m pytest tests/ -v`; [configuração da CI](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/blob/main/.github/workflows/backend-ci.yml) | **307 testes aprovados** na revisão `b65fc00` (ver homologação local acima) |
+| Cobertura mínima de 75% | A CI executa `python -m coverage report -m --fail-under=75` | **87%** pelo `coverage.py` na revisão `b65fc00` |
 | Ruff | A CI executa `python -m ruff check .` | Sem apontamentos (`All checks passed!`) |
-| SonarCloud / Quality Gate | Etapa `Analise SonarCloud e Quality Gate` da CI, configurada em `sonar-project.properties`; envia `coverage.xml` e espera o resultado do Quality Gate (`sonar.qualitygate.wait=true`) | **Pendente:** inserir o link do painel e o status do Quality Gate após a primeira análise. Registrar os apontamentos iniciais (segurança, confiabilidade, manutenibilidade, duplicações e complexidade) e as correções na seção abaixo |
+| SonarCloud / Quality Gate | Etapa `Analise SonarCloud e Quality Gate` da CI, configurada em `sonar-project.properties`; envia `coverage.xml` e espera o resultado do Quality Gate (`sonar.qualitygate.wait=true`) | **Quality Gate Passed**, 0 issues e nota A em segurança, confiabilidade e manutenibilidade na revisão `b65fc00` ([Backend CI #32](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/actions/runs/46162826397)) |
 
 ## Análise estática no SonarCloud — antes e depois do Quality Gate
 
-Painel do projeto: **inserir link** (ex.: `https://sonarcloud.io/project/overview?id=LucasRobertodaRosa_A3-GESTAO-DE-ESTOQUE`)
+Painel do projeto: <https://sonarcloud.io/project/overview?id=LucasRobertodaRosa_A3-GESTAO-DE-ESTOQUE>
+
+- **Primeira análise (antes):** 27/11/2026, revisão `577340b`.
+- **Segunda análise (depois):** 28/11/2026, revisão `b65fc00`, após os PRs [#51](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/pull/51) e [#52](https://github.com/LucasRobertodaRosa/A3-GESTAO-DE-ESTOQUE/pull/52).
 
 | Medida | Primeira análise (antes) | Após correções (depois) | Correções aplicadas (commits) |
 | --- | --- | --- | --- |
-| Segurança (Security) | preencher | preencher | preencher |
-| Confiabilidade (Reliability) | preencher | preencher | preencher |
-| Manutenibilidade (Maintainability) | preencher | preencher | preencher |
-| Duplicações | preencher | preencher | preencher |
-| Complexidade (ciclomática/cognitiva) | preencher | preencher | preencher |
-| Cobertura | preencher | preencher | — |
-| **Quality Gate** | preencher | **Passed** (meta) | — |
+| Segurança (Security) | **D** — 1 vulnerabilidade alta (python:S4502, CSRF em `web.py`) | **A** — 0 | `4a60499` — `CSRFProtect` do Flask-WTF |
+| Confiabilidade (Reliability) | **C** — 7 apontamentos médios | **A** — 0 | `5d6127e`, `cd8b39e` (regex sem backtracking, python:S8786); `ebac1b0` (`autofocus`, Web:S9379); `ffee050` (`autocomplete`, Web:S6840); `f235f79` (asserção, python:S5863) |
+| Manutenibilidade (Maintainability) | **A** — 3 apontamentos baixos | **A** — 0 | corrigidos pelos mesmos commits |
+| Duplicações | 0,6% | 0,6% | — |
+| Complexidade (ciclomática/cognitiva) | 584 / 597 | 587 / 592 | — |
+| Cobertura | 86,9% | 86,9% | — |
+| Issues abertas | 8 | 0 | — |
+| **Quality Gate** | Passed | **Passed** | — |
 
-Guarde um print da primeira análise antes de corrigir os apontamentos: ele é a evidência do "antes" exigida no item 2.12 e no slide de evolução do software.
+Os prints da primeira análise ficam com o grupo como evidência do "antes"; os valores acima foram conferidos na API pública do SonarCloud.
 
 **Observação:** o documento de análise datado de 15/11 estima 236 testes e aproximadamente 85% de cobertura com ferramentas substitutas em sandbox; esses valores **não são o resultado oficial do `pytest`/`coverage.py`** e por isso não foram registrados como medições finais.
 
@@ -108,7 +112,7 @@ Guarde um print da primeira análise antes de corrigir os apontamentos: ele é a
 2. Copiar o número de testes, percentual oficial de cobertura e saída do Ruff dos logs locais/CI **da mesma revisão**.
 3. Inserir links de prints e/ou arquivos de evidências do fluxo manual.
 4. Conferir com Heitor e Diogo os hashes dos commits de autoria individual para completar a rastreabilidade, sem assumir autoria pelo título do PR.
-5. Se o SonarCloud for realmente obrigatório segundo a orientação do professor, inserir o link para o Quality Gate da versão final, após aprovação.
+5. SonarCloud: Quality Gate aprovado na versão final (`b65fc00`), com o antes e depois registrado acima.
 
 
 ## Procedimento de conferência final para preenchimento (antes de publicar)
@@ -174,5 +178,5 @@ Para cada linha da tabela de integrantes acima, conferir: (a) função do plano 
 - [ ] Links de PRs e commits abrem corretamente.
 - [ ] Autoria dos commits atribuída por registros do Git, não apenas pelo responsável pelo merge.
 - [ ] Capturas comprovam o fluxo de ponta a ponta e não expõem senhas.
-- [ ] Quality Gate do SonarCloud tem link e status real, caso seja obrigatório na A3.
+- [x] Quality Gate do SonarCloud tem link e status real.
 - [ ] Documento foi commitado em branch própria e passou por revisão do grupo.
