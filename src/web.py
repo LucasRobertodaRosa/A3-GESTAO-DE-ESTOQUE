@@ -147,7 +147,8 @@ def _campos_visiveis(item):
             continue
         base = tipo.rstrip("?")
         rotulo = pergunta.strip().rstrip(":").strip()
-        rotulo = re.sub(r"\s*\(opcional\)$", "", rotulo)   # o template já avisa
+        if rotulo.endswith("(opcional)"):                 # o template já avisa
+            rotulo = rotulo[:-len("(opcional)")].rstrip()
         if base == "perfil":
             rotulo = rotulo.split(" (")[0]
         campos.append({
@@ -180,7 +181,8 @@ def _rotulo_da_lista(item, campo):
     """'ID do produto' -> 'Produto' (o usuário escolhe na lista, não digita o ID)."""
     if campo["nome"] == "id":
         return _NOME_NO_SINGULAR[_tabela_do_campo(item, "id")]
-    rotulo = re.sub(r"\s*\(ID\)", "", campo["rotulo"])
+    partes = campo["rotulo"].split("(ID)")
+    rotulo = "".join(p.rstrip() for p in partes[:-1]) + partes[-1]
     rotulo = re.sub(r"^ID d[oa] ", "", rotulo)
     return rotulo[:1].upper() + rotulo[1:]
 
