@@ -13,3 +13,6 @@ bcrypt>=4,<6
 
 # Front-end web
 flask>=3,<4
+
+# Protecao CSRF dos formularios web
+flask-wtf>=1.2,<2

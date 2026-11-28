@@ -12,9 +12,11 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from flask import session
+from flask_wtf.csrf import generate_csrf
+
 from src import auditoria, autenticacao, banco, funcionarios, main, web
 
-TOKEN = "token-de-teste"
 SENHA = "segredo1"
 
 
@@ -44,13 +46,24 @@ class BaseWeb(unittest.TestCase):
 
     # ---------- utilitários ----------
 
-    def _post(self, url, cliente=None, **dados):
-        """POST com token CSRF válido (o token é gravado na sessão do cliente)."""
+    def _token(self, cliente=None):
+        """Token CSRF válido para a sessão do cliente (gerado pelo Flask-WTF)."""
         cliente = cliente or self.cliente
         with cliente.session_transaction() as sessao:
-            sessao.setdefault("csrf", TOKEN)
-            token = sessao["csrf"]
-        dados["csrf_token"] = token
+            segredo = sessao.get("csrf_token")
+        with self.app.test_request_context():
+            if segredo:
+                session["csrf_token"] = segredo
+            token = generate_csrf()
+            segredo = session["csrf_token"]
+        with cliente.session_transaction() as sessao:
+            sessao["csrf_token"] = segredo
+        return token
+
+    def _post(self, url, cliente=None, **dados):
+        """POST com token CSRF válido (o segredo fica na sessão do cliente)."""
+        cliente = cliente or self.cliente
+        dados["csrf_token"] = self._token(cliente)
         return cliente.post(url, data=dados)
 
     def _banco(self):
@@ -244,8 +257,7 @@ class TestSeguranca(BaseWeb):
     def test_post_com_token_errado_e_recusado(self):
         self._criar_funcionario()
         self.cliente.get("/entrar")
-        with self.cliente.session_transaction() as sessao:
-            sessao["csrf"] = TOKEN
+        self._token()   # a sessão tem um token válido, mas o formulário envia outro
 
         resposta = self.cliente.post(
             "/entrar", data={"login": "ana", "senha": SENHA, "csrf_token": "outro"}

@@ -13,7 +13,7 @@ site sem alterar este arquivo.
 Segurança:
 - Sessão assinada (defina SECRET_KEY no ambiente; sem ela, uma chave aleatória
   é gerada a cada início e as sessões antigas deixam de valer).
-- Token CSRF em todo POST.
+- Token CSRF em todo POST (Flask-WTF CSRFProtect).
 - Perfil conferido no servidor em cada requisição (funcionário desativado perde
   o acesso na hora); o menu escondido não substitui a verificação.
 - Bloqueio temporário do login após várias falhas seguidas.
@@ -21,7 +21,6 @@ Segurança:
 """
 
 import csv
-import hmac
 import io
 import os
 import re
@@ -43,6 +42,7 @@ from flask import (
     session,
     url_for,
 )
+from flask_wtf.csrf import CSRFError, CSRFProtect
 
 try:
     from src import auditoria, autenticacao, banco, funcionarios, main, relatorios
@@ -492,6 +492,9 @@ def criar_app(caminho_banco=None, config=None):
     if config:
         app.config.update(config)
 
+    # Token CSRF em todo POST (o template usa csrf_token(), registrado pelo Flask-WTF).
+    CSRFProtect(app)
+
     app.extensions["falhas_login"] = {}   # login -> {"conta": int, "ate": float}
 
     inicial = banco.conectar(app.config["CAMINHO_BANCO"])
@@ -502,12 +505,6 @@ def criar_app(caminho_banco=None, config=None):
 
     # ---------- infraestrutura ----------
 
-    def token_csrf():
-        if "csrf" not in session:
-            session["csrf"] = secrets.token_hex(16)
-        return session["csrf"]
-
-    app.jinja_env.globals["csrf_token"] = token_csrf
     app.jinja_env.filters["moeda"] = _moeda
 
     @app.context_processor
@@ -543,12 +540,6 @@ def criar_app(caminho_banco=None, config=None):
         if request.endpoint in (None, "static"):
             return None
 
-        if request.method == "POST":
-            enviado = request.form.get("csrf_token", "").encode("utf-8")
-            esperado = session.get("csrf", "").encode("utf-8")
-            if not esperado or not hmac.compare_digest(enviado, esperado):
-                abort(400, "Sessão expirada ou formulário inválido. Recarregue a página.")
-
         conexao = _conexao()
         total = conexao.execute("SELECT COUNT(*) FROM funcionarios").fetchone()[0]
         if total == 0:
@@ -579,6 +570,13 @@ def criar_app(caminho_banco=None, config=None):
         return render_template(
             "erro.html", codigo=erro.code, mensagem=mensagens[erro.code]
         ), erro.code
+
+    @app.errorhandler(CSRFError)
+    def token_csrf_invalido(_erro):
+        return render_template(
+            "erro.html", codigo=400,
+            mensagem="Sessão expirada ou formulário inválido. Recarregue a página.",
+        ), 400
 
     # ---------- primeiro acesso e login ----------
 
